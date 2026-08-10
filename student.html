@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Portal — Arena Web Security</title>
+  <meta name="description" content="Arena Web Security Student Learning Portal">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="app-root">
+
+  <!-- Student Sidebar -->
+  <aside class="sidebar">
+    <div class="brand-header">
+      <div class="brand-logo">🎓</div>
+      <div class="brand-text">
+        <h1>ARENA SECURITY</h1>
+        <span>Student Portal</span>
+      </div>
+    </div>
+
+    <nav class="nav-menu">
+      <div class="nav-section-title">Student Menu</div>
+
+      <a class="nav-link active" id="nav-dashboard" onclick="showSection('dashboard', this)">
+        <svg fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <span>My Dashboard</span>
+      </a>
+
+      <a class="nav-link" id="nav-schedule" onclick="showSection('schedule', this)">
+        <svg fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <span>Batch Schedule</span>
+      </a>
+
+      <a class="nav-link" id="nav-classroom" onclick="joinLiveClass()">
+        <svg fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        <span>Join Live Class</span>
+        <span class="badge badge-rose" id="live-nav-badge" style="display:none;">LIVE</span>
+      </a>
+
+      <a class="nav-link" id="nav-work" onclick="showSection('work', this)">
+        <svg fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span>Homework & Labs</span>
+        <span class="badge badge-amber" id="hw-badge">0</span>
+      </a>
+
+      <a class="nav-link" id="nav-submissions" onclick="showSection('submissions', this)">
+        <svg fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+        <span>My Submissions</span>
+      </a>
+
+      <div class="nav-section-title">Session</div>
+      <a onclick="logout()" class="nav-link" style="color:var(--rose); cursor:pointer;">
+        <span>🔒 Logout</span>
+      </a>
+    </nav>
+
+    <!-- Student Info Box -->
+    <div class="user-info-box">
+      <div class="user-avatar" id="std-avatar" style="background:linear-gradient(135deg, var(--primary), var(--cyan)); color:#000;">TH</div>
+      <div class="user-details">
+        <h4 id="std-name">Tanvir Hossain</h4>
+        <span id="std-batch" style="color:var(--primary); font-weight:600;">Batch 1</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-wrapper">
+    <header class="top-header">
+      <div class="header-title">
+        <h2 id="page-title">Student Dashboard</h2>
+      </div>
+      <div class="header-actions">
+        <div id="live-class-header-badge" style="display:none; align-items:center; gap:8px; font-size:0.85rem;">
+          <span class="status-indicator live"></span>
+          <span id="live-class-header-text">Class Live Now</span>
+        </div>
+        <button id="btn-join-class" onclick="joinLiveClass()" class="btn btn-primary btn-sm" style="display:none;">
+          🎥 Enter Live Classroom
+        </button>
+      </div>
+    </header>
+
+    <div class="content-area">
+
+      <!-- ── Section: Dashboard ── -->
+      <div id="sec-dashboard" class="std-section">
+
+        <!-- Live Class Banner (hidden by default, shown when class is LIVE) -->
+        <div id="live-class-banner" style="display:none;" class="glass-card" style="background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(6,182,212,0.12)); border-color: rgba(16,185,129,0.3); margin-bottom: 24px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+            <div>
+              <span class="badge badge-rose">🔴 LIVE CLASS IN PROGRESS</span>
+              <h3 style="font-size: 1.3rem; font-weight:800; margin: 8px 0 4px;" id="live-class-topic">Class is now live</h3>
+              <p style="color:var(--text-muted); font-size:0.88rem;" id="live-class-teacher">Instructor: Rahat Chowdhury</p>
+            </div>
+            <button onclick="joinLiveClass()" class="btn btn-primary btn-lg">🎥 JOIN LIVE CLASSROOM NOW</button>
+          </div>
+        </div>
+
+        <!-- No Live Class State -->
+        <div id="no-live-banner" class="glass-card" style="background: rgba(15,23,42,0.6); border-color: rgba(30,41,59,0.5); margin-bottom: 24px; text-align:center; padding: 32px;">
+          <div style="font-size:2.5rem; margin-bottom:12px;">📅</div>
+          <h3 style="font-size:1.1rem; font-weight:700; color:var(--text-main);">No Live Class Right Now</h3>
+          <p style="color:var(--text-muted); font-size:0.85rem; margin-top:4px;" id="next-class-info">Check your schedule for upcoming classes.</p>
+        </div>
+
+        <!-- Student Stats Cards -->
+        <div class="grid-4" style="margin-bottom: 24px;">
+          <div class="glass-card">
+            <span style="color:var(--text-dim); font-size:0.78rem; font-weight:700; text-transform:uppercase;">My Batch</span>
+            <h3 style="font-size:1.1rem; margin-top:6px; color:var(--cyan);" id="card-batch-name">Loading...</h3>
+            <p style="font-size:0.76rem; color:var(--text-muted);">Thu · Fri · Sat · Sun (9:30 PM)</p>
+          </div>
+          <div class="glass-card">
+            <span style="color:var(--text-dim); font-size:0.78rem; font-weight:700; text-transform:uppercase;">Attendance Rate</span>
+            <h3 style="font-size:1.1rem; margin-top:6px; color:var(--primary);">98.5%</h3>
+            <p style="font-size:0.76rem; color:var(--text-muted);">Auto-tracked by system</p>
+          </div>
+          <div class="glass-card">
+            <span style="color:var(--text-dim); font-size:0.78rem; font-weight:700; text-transform:uppercase;">Pending Tasks</span>
+            <h3 style="font-size:1.1rem; margin-top:6px; color:var(--amber);" id="card-pending">0 Tasks</h3>
+            <p style="font-size:0.76rem; color:var(--text-muted);">Due this week</p>
+          </div>
+          <div class="glass-card">
+            <span style="color:var(--text-dim); font-size:0.78rem; font-weight:700; text-transform:uppercase;">Submitted Labs</span>
+            <h3 style="font-size:1.1rem; margin-top:6px; color:var(--purple);" id="card-submitted">0 Labs</h3>
+            <p style="font-size:0.76rem; color:var(--text-muted);">Practical writeups</p>
+          </div>
+        </div>
+
+        <!-- Schedule Preview -->
+        <div class="glass-card">
+          <div class="section-header">
+            <div class="section-title">📅 <span id="schedule-section-title">My Batch Schedule</span></div>
+            <span class="badge badge-emerald">API Synced</span>
+          </div>
+          <div id="schedule-container" class="grid-2"><p style="color:var(--text-muted);">Loading schedule...</p></div>
+        </div>
+      </div>
+
+      <!-- ── Section: Schedule ── -->
+      <div id="sec-schedule" class="std-section" style="display:none;">
+        <div class="glass-card">
+          <div class="section-header">
+            <div class="section-title">📅 My Full Batch Schedule</div>
+          </div>
+          <div id="full-schedule-container"><p style="color:var(--text-muted);">Loading...</p></div>
+        </div>
+      </div>
+
+      <!-- ── Section: Homework ── -->
+      <div id="sec-work" class="std-section" style="display:none;">
+        <div class="glass-card">
+          <div class="section-header">
+            <div class="section-title">📚 My Homework & Lab Assignments</div>
+            <span class="badge badge-amber" id="hw-count-badge">Loading...</span>
+          </div>
+          <div id="homework-container"><p style="color:var(--text-muted);">Loading assignments...</p></div>
+        </div>
+      </div>
+
+      <!-- ── Section: Submissions ── -->
+      <div id="sec-submissions" class="std-section" style="display:none;">
+        <div class="glass-card">
+          <div class="section-header">
+            <div class="section-title">✅ My Lab Submissions & Grades</div>
+          </div>
+          <div id="submissions-container"><p style="color:var(--text-muted);">Loading submissions...</p></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Homework Submission Modal -->
+<div class="modal-overlay" id="modal-submit-hw">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>📤 Submit Homework / Lab Writeup</h3>
+      <button class="close-btn" id="btn-close-hw-modal" onclick="document.getElementById('modal-submit-hw').classList.remove('active')">&times;</button>
+    </div>
+    <div style="margin-bottom:12px;">
+      <span class="badge badge-amber" id="modal-hw-title-badge">Homework Task</span>
+    </div>
+    <input type="hidden" id="active-hw-id">
+    <div class="form-group">
+      <label class="form-label">Writeup / Payload Explanation (Required)</label>
+      <textarea id="std-hw-text" class="form-control" rows="5" placeholder="Describe your exploit steps, payloads used, and findings in detail..."></textarea>
+    </div>
+    <div style="text-align:right; margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('modal-submit-hw').classList.remove('active')">Cancel</button>
+      <button class="btn btn-primary" id="btn-submit-hw" onclick="submitHomework()">✅ Submit Writeup</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+  // Dynamic API URL: works on both localhost and Vercel
+  const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:4000/api'
+    : '/api';
+
+  let currentUser = null;
+  let allHomeworks = [];
+  let allSchedules = [];
+  let liveSchedule = null;
+
+  // ─── Auth ──────────────────────────────────────────────────────────────────
+  async function checkAuth() {
+    const token = localStorage.getItem('arena_token');
+    if (!token) return (window.location.href = 'login.html');
+
+    try {
+      const res = await fetch(`${API_URL}/auth/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+
+      if (!data.success || data.user.role !== 'student') {
+        return (window.location.href = 'login.html');
+      }
+
+      currentUser = data.user;
+      document.getElementById('std-name').textContent = currentUser.name;
+      document.getElementById('std-avatar').textContent = currentUser.avatar || currentUser.name.substring(0, 2).toUpperCase();
+      document.getElementById('std-batch').textContent = currentUser.batchId || 'Batch';
+
+      const batchNames = { B1: 'Batch 1 — Web Security', B2: 'Batch 2 — API Security', B3: 'Batch 3 — SOC', B4: 'Batch 4 — Cloud Security' };
+      document.getElementById('card-batch-name').textContent = batchNames[currentUser.batchId] || currentUser.batchId;
+      document.getElementById('schedule-section-title').textContent = `${batchNames[currentUser.batchId] || 'My Batch'} Schedule`;
+
+      await loadAllData();
+
+    } catch (e) {
+      window.location.href = 'login.html';
+    }
+  }
+
+  // ─── Load All Data ─────────────────────────────────────────────────────────
+  async function loadAllData() {
+    await Promise.all([loadSchedules(), loadHomeworks()]);
+  }
+
+  async function loadSchedules() {
+    const token = localStorage.getItem('arena_token');
+    try {
+      const res = await fetch(`${API_URL}/schedules`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (!data.success) return;
+
+      allSchedules = data.schedules;
+      liveSchedule = allSchedules.find(s => s.status === 'LIVE') || null;
+
+      renderSchedule();
+      renderLiveBanner();
+    } catch (e) {
+      console.error('Schedule load error:', e);
+    }
+  }
+
+  async function loadHomeworks() {
+    const token = localStorage.getItem('arena_token');
+    try {
+      const res = await fetch(`${API_URL}/homeworks`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (!data.success) return;
+
+      allHomeworks = data.homeworks || [];
+      const submissions = data.submissions || [];
+
+      renderHomeworks(allHomeworks, submissions);
+
+      document.getElementById('card-pending').textContent = `${allHomeworks.length} Tasks`;
+      document.getElementById('card-submitted').textContent = `${submissions.length} Labs`;
+      document.getElementById('hw-badge').textContent = allHomeworks.length;
+      document.getElementById('hw-count-badge').textContent = `${allHomeworks.length} Assignments`;
+
+      renderSubmissions(submissions);
+    } catch (e) {
+      console.error('Homework load error:', e);
+    }
+  }
+
+  // ─── Renderers ─────────────────────────────────────────────────────────────
+  function renderLiveBanner() {
+    const liveBanner = document.getElementById('live-class-banner');
+    const noBanner = document.getElementById('no-live-banner');
+    const headerBadge = document.getElementById('live-class-header-badge');
+    const joinBtn = document.getElementById('btn-join-class');
+    const liveNavBadge = document.getElementById('live-nav-badge');
+
+    if (liveSchedule) {
+      liveBanner.style.display = 'block';
+      noBanner.style.display = 'none';
+      headerBadge.style.display = 'flex';
+      joinBtn.style.display = 'inline-flex';
+      liveNavBadge.style.display = 'inline-flex';
+      document.getElementById('live-class-topic').textContent = liveSchedule.topic;
+      document.getElementById('live-class-teacher').textContent = `Instructor: ${liveSchedule.teacherName} · ${liveSchedule.batchName}`;
+      document.getElementById('live-class-header-text').textContent = `${liveSchedule.batchName} Live`;
+    } else {
+      liveBanner.style.display = 'none';
+      noBanner.style.display = 'block';
+      headerBadge.style.display = 'none';
+      joinBtn.style.display = 'none';
+      liveNavBadge.style.display = 'none';
+
+      const nextClass = allSchedules.find(s => s.status === 'UPCOMING');
+      if (nextClass) {
+        document.getElementById('next-class-info').textContent = `Next class: ${nextClass.topic} on ${nextClass.day}`;
+      }
+    }
+  }
+
+  function renderSchedule() {
+    const grid = document.getElementById('schedule-container');
+    const fullGrid = document.getElementById('full-schedule-container');
+    const html = allSchedules.map(item => `
+      <div class="glass-card" style="background:rgba(15,23,42,0.6);">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <span class="badge ${item.status === 'LIVE' ? 'badge-rose' : item.status === 'COMPLETED' ? 'badge-emerald' : 'badge-cyan'}">${item.status === 'LIVE' ? '🔴 LIVE NOW' : item.status === 'COMPLETED' ? '✅ Completed' : item.day}</span>
+          <span style="font-size:0.78rem; color:var(--text-muted);">${item.time}</span>
+        </div>
+        <h4 style="font-size:1rem; font-weight:700; margin-bottom:4px;">${item.topic}</h4>
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">Instructor: ${item.teacherName}</p>
+        ${item.status === 'LIVE'
+          ? `<button onclick="joinLiveClass()" class="btn btn-primary btn-sm" style="width:100%;">🎥 Join Live Classroom</button>`
+          : item.status === 'COMPLETED'
+          ? `<button class="btn btn-outline btn-sm" style="width:100%; color:var(--text-dim);" disabled>✅ Class Completed</button>`
+          : `<button class="btn btn-outline btn-sm" style="width:100%; color:var(--text-muted);" disabled>⏰ Starts ${item.day}</button>`
+        }
+      </div>
+    `).join('');
+
+    if (grid) grid.innerHTML = html || '<p style="color:var(--text-muted);">No classes scheduled.</p>';
+    if (fullGrid) fullGrid.innerHTML = html || '<p style="color:var(--text-muted);">No classes scheduled.</p>';
+  }
+
+  function renderHomeworks(homeworks, submissions) {
+    const container = document.getElementById('homework-container');
+    if (!container) return;
+
+    if (!homeworks || homeworks.length === 0) {
+      container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted);">
+        <div style="font-size:2.5rem; margin-bottom:12px;">📭</div>
+        <p>No homework assigned yet. Check back after class!</p>
+      </div>`;
+      return;
+    }
+
+    const submittedIds = new Set((submissions || []).map(s => s.homeworkId));
+
+    container.innerHTML = homeworks.map(hw => {
+      const isSubmitted = submittedIds.has(hw.id);
+      return `
+        <div class="glass-card" style="margin-bottom:14px; background:rgba(15,23,42,0.6);">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; gap:10px; flex-wrap:wrap;">
+            <h4 style="font-size:1.05rem; font-weight:700; color:var(--text-main);">${hw.title}</h4>
+            <span class="badge badge-amber">Due: ${hw.dueDate}</span>
+          </div>
+          <p style="color:var(--text-muted); font-size:0.86rem; margin-bottom:12px;">${hw.description}</p>
+          <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--bg-card-border); padding-top:12px; flex-wrap:wrap; gap:10px;">
+            <span style="font-size:0.8rem; color:var(--cyan);">📎 ${hw.attachment} &nbsp;|&nbsp; Max Score: ${hw.maxScore} pts</span>
+            ${isSubmitted
+              ? `<span class="badge badge-emerald">✅ Submitted</span>`
+              : `<button class="btn btn-primary btn-sm" onclick="openHwModal('${hw.id}', '${hw.title.replace(/'/g, "\\'")}')">📤 Submit Writeup</button>`
+            }
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderSubmissions(submissions) {
+    const container = document.getElementById('submissions-container');
+    if (!container) return;
+
+    if (!submissions || submissions.length === 0) {
+      container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted);">
+        <div style="font-size:2.5rem; margin-bottom:12px;">📂</div>
+        <p>No submissions yet. Submit your first homework!</p>
+      </div>`;
+      return;
+    }
+
+    container.innerHTML = submissions.map(sub => `
+      <div class="glass-card" style="margin-bottom:14px; background:rgba(15,23,42,0.6);">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+          <h4 style="font-weight:700; color:var(--cyan);">Homework ID: ${sub.homeworkId}</h4>
+          <div style="display:flex; gap:8px; align-items:center;">
+            ${sub.score !== null ? `<span class="badge badge-emerald">Score: ${sub.score}/100</span>` : '<span class="badge badge-amber">Pending Grade</span>'}
+            <span class="badge ${sub.status === 'GRADED' ? 'badge-emerald' : 'badge-amber'}">${sub.status}</span>
+          </div>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">"${sub.content.substring(0, 120)}${sub.content.length > 120 ? '...' : ''}"</p>
+        <p style="font-size:0.8rem; color:var(--primary);">💬 Instructor: ${sub.feedback}</p>
+        <p style="font-size:0.76rem; color:var(--text-dim); margin-top:6px;">Submitted: ${sub.submittedAt}</p>
+      </div>
+    `).join('');
+  }
+
+  // ─── Actions ───────────────────────────────────────────────────────────────
+  function joinLiveClass() {
+    if (!liveSchedule) {
+      showToast('⏰ No class is live right now. Check your schedule!', 'amber');
+      return;
+    }
+    window.location.href = 'classroom.html';
+  }
+
+  function openHwModal(hwId, hwTitle) {
+    document.getElementById('active-hw-id').value = hwId;
+    document.getElementById('modal-hw-title-badge').textContent = hwTitle;
+    document.getElementById('std-hw-text').value = '';
+    document.getElementById('modal-submit-hw').classList.add('active');
+  }
+
+  async function submitHomework() {
+    const text = document.getElementById('std-hw-text').value.trim();
+    const hwId = document.getElementById('active-hw-id').value;
+    if (!text) return showToast('Please enter your writeup before submitting!', 'rose');
+
+    const btn = document.getElementById('btn-submit-hw');
+    btn.disabled = true;
+    btn.textContent = '🔄 Submitting...';
+
+    const token = localStorage.getItem('arena_token');
+    try {
+      const res = await fetch(`${API_URL}/homeworks/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ homeworkId: hwId, content: text })
+      });
+      const data = await res.json();
+
+      document.getElementById('modal-submit-hw').classList.remove('active');
+
+      if (data.success) {
+        showToast('✅ Homework submitted successfully! Instructor will review soon.', 'emerald');
+        await loadHomeworks();
+      } else {
+        showToast(data.error || 'Submission failed. Please try again.', 'rose');
+      }
+    } catch (e) {
+      showToast('⚠️ Network error. Please check your connection.', 'rose');
+    }
+
+    btn.disabled = false;
+    btn.textContent = '✅ Submit Writeup';
+  }
+
+  // ─── Navigation ────────────────────────────────────────────────────────────
+  function showSection(id, navEl) {
+    document.querySelectorAll('.std-section').forEach(el => el.style.display = 'none');
+    const sec = document.getElementById(`sec-${id}`);
+    if (sec) sec.style.display = 'block';
+
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    if (navEl) navEl.classList.add('active');
+
+    const titles = { dashboard: 'Student Dashboard', schedule: 'Batch Schedule', work: 'Homework & Labs', submissions: 'My Submissions' };
+    document.getElementById('page-title').textContent = titles[id] || 'Student Portal';
+  }
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+  function logout() {
+    localStorage.removeItem('arena_token');
+    localStorage.removeItem('arena_user');
+    window.location.href = 'login.html';
+  }
+
+  function showToast(msg, type = 'primary') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = msg;
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.add('visible'), 50);
+    setTimeout(() => { toast.classList.remove('visible'); setTimeout(() => toast.remove(), 300); }, 3500);
+  }
+
+  document.addEventListener('DOMContentLoaded', checkAuth);
+</script>
+</body>
+</html>

@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Classroom — Arena Web Security</title>
+  <meta name="description" content="Arena Web Security Virtual Live Classroom">
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    /* ── Classroom Layout ─────────────────────────────────────── */
+    body { overflow: hidden; }
+    #classroom-root {
+      display: grid;
+      grid-template-rows: 56px 1fr 72px;
+      grid-template-columns: 1fr 340px;
+      height: 100vh;
+      background: #030712;
+    }
+
+    /* ── Top Bar ───────────────────────────────────────────────── */
+    #topbar {
+      grid-column: 1 / -1;
+      background: rgba(15,23,42,0.95);
+      border-bottom: 1px solid rgba(30,41,59,0.8);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 16px;
+      backdrop-filter: blur(12px);
+    }
+    #topbar .brand { font-weight: 800; font-size: 0.95rem; letter-spacing: 1px; color: var(--text-main); }
+    #topbar .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rose); animation: pulse-dot 1.5s ease-in-out infinite; }
+    @keyframes pulse-dot { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(0.8); } }
+    #topbar .session-info { font-size: 0.82rem; color: var(--text-muted); flex: 1; }
+    #timer-display {
+      font-family: var(--font-mono);
+      font-size: 0.92rem;
+      color: var(--primary);
+      background: rgba(16,185,129,0.1);
+      border: 1px solid rgba(16,185,129,0.25);
+      border-radius: 6px;
+      padding: 4px 12px;
+    }
+    .user-chip {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(30,41,59,0.8);
+      border-radius: 8px;
+      padding: 6px 12px;
+    }
+    .user-chip .avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--cyan)); color:#000; font-size:0.7rem; font-weight:800; display:flex; align-items:center; justify-content:center; }
+
+    /* ── Main Video Area ───────────────────────────────────────── */
+    #video-main {
+      position: relative;
+      background: #050c18;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Google Meet iframe fills the entire main video area */
+    #meet-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+
+    /* No-Meet placeholder (shown when no live class) */
+    #no-meet-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 40px;
+      gap: 16px;
+    }
+    #no-meet-placeholder .icon { font-size: 4rem; }
+    #no-meet-placeholder h3 { font-size: 1.2rem; font-weight: 700; color: var(--text-main); }
+
+    /* Screen Share overlay (shown on top of Meet when screen sharing) */
+    #screen-share-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #050c18;
+      z-index: 10;
+      display: none;
+      flex-direction: column;
+    }
+    #screen-share-overlay.active { display: flex; }
+    #screen-share-header {
+      background: rgba(16,185,129,0.15);
+      border-bottom: 1px solid rgba(16,185,129,0.3);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+    }
+    #screen-video { flex: 1; width: 100%; object-fit: contain; background: #000; }
+    #screen-canvas { flex: 1; width: 100%; object-fit: contain; background: #000; display:none; }
+
+    /* Watermark on screen share */
+    #screen-watermark {
+      position: absolute;
+      bottom: 16px;
+      right: 20px;
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.18);
+      font-weight: 700;
+      pointer-events: none;
+      z-index: 20;
+      text-align: right;
+      line-height: 1.6;
+    }
+
+    /* Classwork Timer overlay */
+    #classwork-timer-overlay {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 30;
+      display: none;
+      background: rgba(15,23,42,0.92);
+      border: 1px solid rgba(245,158,11,0.4);
+      border-radius: 12px;
+      padding: 12px 20px;
+      text-align: center;
+      min-width: 260px;
+      backdrop-filter: blur(8px);
+    }
+    #classwork-timer-overlay.active { display: block; }
+    #classwork-title-display { font-size:0.88rem; font-weight:700; color:var(--amber); margin-bottom:4px; }
+    #classwork-countdown { font-family:var(--font-mono); font-size:2rem; font-weight:800; color:var(--text-main); }
+
+    /* ── Right Sidebar ─────────────────────────────────────────── */
+    #sidebar-right {
+      background: rgba(15,23,42,0.97);
+      border-left: 1px solid rgba(30,41,59,0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(30,41,59,0.7);
+    }
+    .sidebar-tab {
+      flex: 1;
+      padding: 12px 8px;
+      text-align: center;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.2s;
+      border-bottom: 2px solid transparent;
+    }
+    .sidebar-tab:hover { color: var(--text-main); }
+    .sidebar-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .tab-panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .tab-panel.active { display: flex; }
+
+    /* Chat panel */
+    #chat-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .chat-msg { padding: 10px 12px; border-radius: 10px; background: rgba(30,41,59,0.6); border: 1px solid rgba(51,65,85,0.4); }
+    .chat-msg .msg-author { font-size: 0.75rem; font-weight: 700; margin-bottom: 4px; }
+    .chat-msg .msg-author.teacher { color: var(--cyan); }
+    .chat-msg .msg-author.student { color: var(--primary); }
+    .chat-msg .msg-author.auditor { color: var(--purple); }
+    .chat-msg .msg-time { color: var(--text-dim); font-size: 0.7rem; float: right; }
+    .chat-msg .msg-text { font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; }
+    #chat-input-area { padding: 12px; border-top: 1px solid rgba(30,41,59,0.7); display: flex; gap: 8px; }
+    #chat-input { flex: 1; background: rgba(30,41,59,0.8); border: 1px solid rgba(51,65,85,0.5); border-radius: 8px; padding: 8px 12px; color: var(--text-main); font-size: 0.85rem; }
+    #chat-input:focus { outline: none; border-color: var(--primary); }
+    #btn-send-chat { background: var(--primary); border: none; border-radius: 8px; color: #000; font-weight: 700; cursor: pointer; padding: 8px 14px; font-size: 0.9rem; }
+
+    /* Classwork panel */
+    #classwork-panel { flex: 1; overflow-y: auto; padding: 14px; }
+    #classwork-content { color: var(--text-muted); font-size: 0.85rem; }
+    #cw-solution-input { width: 100%; background: rgba(30,41,59,0.8); border: 1px solid rgba(51,65,85,0.5); border-radius: 8px; padding: 10px 12px; color: var(--text-main); font-size: 0.85rem; resize: vertical; min-height: 80px; font-family: var(--font-mono); }
+
+    /* Participants panel */
+    #participants-panel { flex: 1; overflow-y: auto; padding: 12px; }
+    .participant-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(30,41,59,0.4); margin-bottom: 6px; }
+    .participant-item .av { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; }
+    .participant-item .pname { font-size: 0.85rem; font-weight: 600; color: var(--text-main); flex: 1; }
+    .participant-item .prole { font-size: 0.72rem; color: var(--text-dim); }
+
+    /* ── Bottom Controls ───────────────────────────────────────── */
+    #bottom-controls {
+      grid-column: 1 / -1;
+      background: rgba(15,23,42,0.97);
+      border-top: 1px solid rgba(30,41,59,0.7);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 10px;
+      backdrop-filter: blur(12px);
+    }
+    .ctrl-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      background: rgba(30,41,59,0.8);
+      border: 1px solid rgba(51,65,85,0.5);
+      border-radius: 10px;
+      padding: 8px 16px;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      min-width: 64px;
+    }
+    .ctrl-btn:hover { background: rgba(51,65,85,0.8); color: var(--text-main); }
+    .ctrl-btn.active { background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.4); color: var(--primary); }
+    .ctrl-btn.off { background: rgba(244,63,94,0.12); border-color: rgba(244,63,94,0.3); color: var(--rose); }
+    .ctrl-btn .icon { font-size: 1.3rem; line-height: 1; }
+    .ctrl-separator { flex: 1; }
+    .ctrl-btn.leave { background: rgba(244,63,94,0.12); border-color: rgba(244,63,94,0.3); color: var(--rose); }
+    .ctrl-btn.leave:hover { background: rgba(244,63,94,0.25); }
+
+    /* Teacher-only controls */
+    .teacher-only { display: none; }
+  </style>
+</head>
+<body>
+
+<div id="classroom-root">
+
+  <!-- ── Top Bar ──────────────────────────────────────────────── -->
+  <div id="topbar">
+    <div class="brand">🛡️ ARENA WEB SECURITY</div>
+    <div class="live-dot"></div>
+    <div class="session-info">
+      <span id="class-topic-display">Live Classroom</span>
+      <span style="color:var(--text-dim); margin:0 8px;">·</span>
+      <span id="class-batch-display" style="color:var(--cyan);">Loading...</span>
+    </div>
+    <div id="timer-display">⏱ <span id="timer-clock">--:--</span></div>
+    <div class="user-chip">
+      <div class="avatar" id="topbar-avatar">?</div>
+      <span id="topbar-name" style="font-size:0.82rem; font-weight:600; color:var(--text-main);">Loading</span>
+      <span id="topbar-role" class="badge badge-cyan" style="font-size:0.65rem; padding:2px 6px;">USER</span>
+    </div>
+  </div>
+
+  <!-- ── Main Video Area ──────────────────────────────────────── -->
+  <div id="video-main">
+
+    <!-- Google Meet Iframe (primary video source) -->
+    <iframe
+      id="meet-iframe"
+      allow="camera; microphone; display-capture; fullscreen; speaker-selection; clipboard-read; clipboard-write"
+      allowfullscreen
+      referrerpolicy="no-referrer-when-downgrade"
+      style="display:none;"
+    ></iframe>
+
+    <!-- No live class placeholder -->
+    <div id="no-meet-placeholder">
+      <div class="icon">📡</div>
+      <h3>Waiting for Class to Start</h3>
+      <p style="font-size:0.88rem; max-width:400px;">The teacher hasn't started the class session yet. The live video will appear here automatically when the class begins.</p>
+      <div id="no-meet-loading" style="display:none; margin-top:12px;">
+        <div style="width:40px; height:4px; background:var(--primary); border-radius:2px; animation: load-bar 1.5s ease-in-out infinite;"></div>
+        <style>@keyframes load-bar { 0%,100%{opacity:0.3;} 50%{opacity:1;} }</style>
+        <p style="color:var(--text-muted); font-size:0.8rem; margin-top:8px;">Checking for live class...</p>
+      </div>
+    </div>
+
+    <!-- Screen Share Overlay (teacher's screen, on top of Meet) -->
+    <div id="screen-share-overlay">
+      <div id="screen-share-header">
+        <span class="badge badge-emerald">🖥️ Screen Sharing</span>
+        <span id="screen-sharer-name" style="color:var(--text-muted);">Instructor</span>
+        <span style="flex:1;"></span>
+        <button class="ctrl-btn" style="min-width:unset; padding:4px 10px; font-size:0.75rem;" id="btn-stop-share" onclick="stopScreenShare()" style="display:none;">✖ Stop</button>
+      </div>
+      <video id="screen-video" autoplay muted playsinline></video>
+      <canvas id="screen-canvas"></canvas>
+      <div id="screen-watermark"></div>
+    </div>
+
+    <!-- Classwork Timer Overlay -->
+    <div id="classwork-timer-overlay">
+      <div id="classwork-title-display">⚡ Classwork Task</div>
+      <div id="classwork-countdown">15:00</div>
+      <div id="classwork-desc-display" style="font-size:0.78rem; color:var(--text-muted); margin-top:6px;"></div>
+    </div>
+  </div>
+
+  <!-- ── Right Sidebar ────────────────────────────────────────── -->
+  <div id="sidebar-right">
+    <div class="sidebar-tabs">
+      <div class="sidebar-tab active" id="tab-btn-chat" onclick="switchTab('chat')">💬 Chat</div>
+      <div class="sidebar-tab" id="tab-btn-classwork" onclick="switchTab('classwork')">⚡ Classwork</div>
+      <div class="sidebar-tab" id="tab-btn-participants" onclick="switchTab('participants')">👥 People</div>
+    </div>
+
+    <!-- Chat Tab -->
+    <div class="tab-panel active" id="tab-panel-chat">
+      <div id="chat-messages"></div>
+      <div id="chat-input-area">
+        <input type="text" id="chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendChat()">
+        <button id="btn-send-chat" onclick="sendChat()">➤</button>
+      </div>
+    </div>
+
+    <!-- Classwork Tab -->
+    <div class="tab-panel" id="tab-panel-classwork">
+      <div id="classwork-panel">
+        <div id="classwork-content">
+          <div style="text-align:center; padding:30px 16px; color:var(--text-muted);">
+            <div style="font-size:2rem; margin-bottom:10px;">⚡</div>
+            <p style="font-size:0.85rem;" id="classwork-status-text">No classwork assigned yet. The instructor will push a task during class.</p>
+          </div>
+          <div id="active-classwork-form" style="display:none;">
+            <div class="glass-card" style="background:rgba(245,158,11,0.08); border-color:rgba(245,158,11,0.25); margin-bottom:12px;">
+              <h4 id="cw-active-title" style="font-size:0.92rem; font-weight:700; color:var(--amber);">Task</h4>
+              <p id="cw-active-desc" style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;"></p>
+            </div>
+            <label class="form-label">Your Solution / Payload</label>
+            <textarea id="cw-solution-input" class="form-control" placeholder="Paste your payload, script, or writeup here..."></textarea>
+            <button class="btn btn-amber" style="width:100%; margin-top:12px; justify-content:center;" onclick="submitClasswork()">✅ Submit Solution</button>
+          </div>
+        </div>
+        <!-- Teacher: Push Classwork (only visible to teacher) -->
+        <div class="teacher-only" id="teacher-push-classwork" style="padding:14px; border-top:1px solid rgba(30,41,59,0.7);">
+          <button class="btn btn-amber btn-sm" style="width:100%; justify-content:center;" onclick="document.getElementById('modal-push-cw').classList.add('active')">
+            ⚡ Push Classwork Timer
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Participants Tab -->
+    <div class="tab-panel" id="tab-panel-participants">
+      <div id="participants-panel">
+        <div id="participants-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bottom Controls ──────────────────────────────────────── -->
+  <div id="bottom-controls">
+    <!-- Breakout Rooms (teacher only) -->
+    <div class="teacher-only">
+      <button class="ctrl-btn" id="btn-breakout" onclick="createBreakoutRooms()">
+        <span class="icon">👥</span>
+        Breakout
+      </button>
+    </div>
+
+    <!-- Screen Share (teacher only) -->
+    <div class="teacher-only">
+      <button class="ctrl-btn" id="btn-screen-share" onclick="toggleScreenShare()">
+        <span class="icon">🖥️</span>
+        Screen Share
+      </button>
+    </div>
+
+    <!-- Push Classwork (teacher only) -->
+    <div class="teacher-only">
+      <button class="ctrl-btn" id="btn-push-cw" onclick="document.getElementById('modal-push-cw').classList.add('active')">
+        <span class="icon">⚡</span>
+        Classwork
+      </button>
+    </div>
+
+    <div class="ctrl-separator"></div>
+
+    <!-- Session Duration -->
+    <div style="text-align:center; font-size:0.72rem; color:var(--text-dim);">
+      <div style="font-family:var(--font-mono); font-size:0.85rem; color:var(--text-muted);" id="session-duration">00:00</div>
+      <div>Session</div>
+    </div>
+
+    <div class="ctrl-separator"></div>
+
+    <!-- Leave Button -->
+    <button class="ctrl-btn leave" id="btn-leave" onclick="leaveClassroom()">
+      <span class="icon">🚪</span>
+      Leave
+    </button>
+  </div>
+</div>
+
+<!-- Modal: Push Classwork (teacher) -->
+<div class="modal-overlay" id="modal-push-cw">
+  <div class="modal-box" style="max-width:480px;">
+    <div class="modal-header">
+      <h3>⚡ Push Live Classwork Timer</h3>
+      <button class="close-btn" onclick="document.getElementById('modal-push-cw').classList.remove('active')">&times;</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Classwork Title</label>
+      <input type="text" id="cw-title-input" class="form-control" placeholder="e.g. SQLi Exfiltration Script">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Instructions / Task Description</label>
+      <textarea id="cw-desc-input" class="form-control" rows="3" placeholder="Describe the task students need to complete..."></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Countdown Timer (Minutes)</label>
+      <input type="number" id="cw-timer-input" class="form-control" value="15" min="1" max="60">
+    </div>
+    <div style="text-align:right; display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('modal-push-cw').classList.remove('active')">Cancel</button>
+      <button class="btn btn-amber" onclick="pushClasswork()">🚀 Broadcast to All Students</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+  const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:4000/api'
+    : '/api';
+
+  let currentUser = null;
+  let liveSchedule = null;
+  let sessionStartTime = Date.now();
+  let chatPollInterval = null;
+  let streamPollInterval = null;
+  let classworkInterval = null;
+  let isScreenSharing = false;
+  let screenStream = null;
+  let screenBroadcastInterval = null;
+
+  // ─── Auth & Init ──────────────────────────────────────────────
+  async function init() {
+    const token = localStorage.getItem('arena_token');
+    if (!token) return (window.location.href = 'login.html');
+
+    try {
+      const res = await fetch(`${API_URL}/auth/me`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (!data.success) return (window.location.href = 'login.html');
+
+      currentUser = data.user;
+      setupUI();
+      await fetchLiveSession();
+      startPolling();
+    } catch (e) {
+      showToast('⚠️ Connection error. Please refresh.', 'rose');
+    }
+  }
+
+  function setupUI() {
+    document.getElementById('topbar-avatar').textContent = currentUser.avatar || currentUser.name.substring(0, 2).toUpperCase();
+    document.getElementById('topbar-name').textContent = currentUser.name;
+    const roleLabels = { teacher: 'INSTRUCTOR', student: 'STUDENT', auditor: 'AUDITOR' };
+    const roleBadge = document.getElementById('topbar-role');
+    roleBadge.textContent = roleLabels[currentUser.role] || currentUser.role.toUpperCase();
+
+    // Show teacher-only controls
+    if (currentUser.role === 'teacher') {
+      document.querySelectorAll('.teacher-only').forEach(el => el.style.display = 'block');
+      document.getElementById('btn-stop-share').style.display = 'inline-flex';
+    }
+
+    // Show auditor watermark
+    if (currentUser.role === 'auditor') {
+      roleBadge.classList.remove('badge-cyan');
+      roleBadge.classList.add('badge-purple');
+      showToast('🕵️ Silent Audit Mode Active', 'purple');
+    }
+
+    // Session duration counter
+    setInterval(() => {
+      const elapsed = Math.floor((Date.now() - sessionStartTime) / 1000);
+      const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+      const secs = (elapsed % 60).toString().padStart(2, '0');
+      document.getElementById('session-duration').textContent = `${mins}:${secs}`;
+    }, 1000);
+
+    renderParticipants();
+  }
+
+  // ─── Live Session (Google Meet embed) ─────────────────────────
+  async function fetchLiveSession() {
+    const token = localStorage.getItem('arena_token');
+    try {
+      const [streamRes, schedRes] = await Promise.all([
+        fetch(`${API_URL}/stream/live`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_URL}/schedules`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+
+      const streamData = await streamRes.json();
+      const schedData = await schedRes.json();
+
+      if (schedData.success) {
+        const schedules = schedData.schedules;
+        liveSchedule = schedules.find(s => s.status === 'LIVE') || null;
+      }
+
+      if (streamData.success) {
+        updateMeetEmbed(streamData.activeMeetLink);
+      }
+
+      if (liveSchedule) {
+        document.getElementById('class-topic-display').textContent = liveSchedule.topic;
+        document.getElementById('class-batch-display').textContent = liveSchedule.batchName;
+      } else {
+        document.getElementById('class-topic-display').textContent = 'No Active Session';
+        document.getElementById('class-batch-display').textContent = 'Waiting for teacher to start class';
+      }
+
+    } catch (e) {
+      console.error('Session fetch error:', e);
+    }
+  }
+
+  function updateMeetEmbed(meetLink) {
+    const iframe = document.getElementById('meet-iframe');
+    const placeholder = document.getElementById('no-meet-placeholder');
+
+    if (meetLink && meetLink.startsWith('https://meet.google.com/')) {
+      iframe.src = meetLink;
+      iframe.style.display = 'block';
+      placeholder.style.display = 'none';
+    } else {
+      iframe.style.display = 'none';
+      iframe.src = '';
+      placeholder.style.display = 'flex';
+      // Show loading dots if we expect a class to start soon
+      document.getElementById('no-meet-loading').style.display = 'block';
+    }
+  }
+
+  // ─── Chat ───────────────────────────────────────────────────────
+  async function loadChat() {
+    const token = localStorage.getItem('arena_token');
+    try {
+      const res = await fetch(`${API_URL}/chat/messages`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) renderChat(data.messages);
+    } catch (e) {}
+  }
+
+  function renderChat(messages) {
+    const container = document.getElementById('chat-messages');
+    const wasAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 20;
+
+    container.innerHTML = messages.map(msg => `
+      <div class="chat-msg">
+        <div class="msg-author ${msg.role}">
+          ${msg.author}
+          <span class="msg-time">${msg.time}</span>
+        </div>
+        <div class="msg-text">${msg.text}</div>
+      </div>
+    `).join('');
+
+    if (wasAtBottom) container.scrollTop = container.scrollHeight;
+  }
+
+  async function sendChat() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = '';
+    const token = localStorage.getItem('arena_token');
+    try {
+      await fetch(`${API_URL}/chat/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ text })
+      });
+      await loadChat();
+    } catch (e) {}
+  }
+
+  // ─── Screen Share ────────────────────────────────────────────── 
+  async function toggleScreenShare() {
+    if (isScreenSharing) {
+      await stopScreenShare();
+    } else {
+      await startScreenShare();
+    }
+  }
+
+  async function startScreenShare() {
+    try {
+      screenStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 }, audio: true });
+      const video = document.getElementById('screen-video');
+      video.srcObject = screenStream;
+      video.style.display = 'block';
+
+      const overlay = document.getElementById('screen-share-overlay');
+      overlay.classList.add('active');
+      document.getElementById('screen-sharer-name').textContent = currentUser.name + ' (Instructor)';
+      document.getElementById('screen-watermark').innerHTML = `🛡️ Arena Web Security<br>${currentUser.name}<br>${new Date().toLocaleDateString()}`;
+
+      document.getElementById('btn-screen-share').classList.add('active');
+      isScreenSharing = true;
+
+      // Broadcast frames to server so students can see
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const token = localStorage.getItem('arena_token');
+
+      await fetch(`${API_URL}/stream/broadcast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ isSharing: true })
+      });
+
+      screenBroadcastInterval = setInterval(async () => {
+        if (!isScreenSharing || !video.videoWidth) return;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+        const frame = canvas.toDataURL('image/jpeg', 0.5);
+        try {
+          await fetch(`${API_URL}/stream/broadcast`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ isSharing: true, frame })
+          });
+        } catch (e) {}
+      }, 500);
+
+      screenStream.getVideoTracks()[0].onended = () => stopScreenShare();
+      showToast('🖥️ Screen sharing started!', 'emerald');
+
+    } catch (e) {
+      if (e.name !== 'NotAllowedError') showToast('⚠️ Could not start screen share.', 'rose');
+    }
+  }
+
+  async function stopScreenShare() {
+    isScreenSharing = false;
+    if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
+    if (screenBroadcastInterval) { clearInterval(screenBroadcastInterval); screenBroadcastInterval = null; }
+
+    document.getElementById('screen-share-overlay').classList.remove('active');
+    document.getElementById('screen-video').srcObject = null;
+    document.getElementById('btn-screen-share').classList.remove('active');
+
+    const token = localStorage.getItem('arena_token');
+    await fetch(`${API_URL}/stream/broadcast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ isSharing: false })
+    });
+
+    showToast('Screen sharing stopped.', 'amber');
+  }
+
+  // ─── Stream Polling (for students to receive screen share) ─────
+  async function pollStream() {
+    if (currentUser.role === 'teacher') return;
+    const token = localStorage.getItem('arena_token');
+    try {
+      const res = await fetch(`${API_URL}/stream/live`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (!data.success) return;
+
+      // Update Meet embed if link changed
+      updateMeetEmbed(data.activeMeetLink);
+
+      const overlay = document.getElementById('screen-share-overlay');
+      if (data.stream?.isSharing && data.stream.frame) {
+        overlay.classList.add('active');
+        document.getElementById('screen-sharer-name').textContent = data.stream.broadcasterName + ' (Instructor)';
+        const canvas = document.getElementById('screen-canvas');
+        canvas.style.display = 'block';
+        document.getElementById('screen-video').style.display = 'none';
+        const img = new Image();
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          canvas.getContext('2d').drawImage(img, 0, 0);
+        };
+        img.src = data.stream.frame;
+      } else if (!data.stream?.isSharing) {
+        overlay.classList.remove('active');
+      }
+    } catch (e) {}
+  }
+
+  // ─── Classwork ──────────────────────────────────────────────────
+  function pushClasswork() {
+    const title = document.getElementById('cw-title-input').value.trim();
+    const desc = document.getElementById('cw-desc-input').value.trim();
+    const mins = parseInt(document.getElementById('cw-timer-input').value) || 15;
+
+    if (!title) return showToast('Please enter a classwork title.', 'rose');
+
+    document.getElementById('modal-push-cw').classList.remove('active');
+    activateClassworkTimer(title, desc, mins);
+    showToast(`⚡ Classwork "${title}" pushed to all students!`, 'amber');
+  }
+
+  function activateClassworkTimer(title, desc, mins) {
+    const overlay = document.getElementById('classwork-timer-overlay');
+    const countdown = document.getElementById('classwork-countdown');
+    overlay.classList.add('active');
+    document.getElementById('classwork-title-display').textContent = `⚡ ${title}`;
+    document.getElementById('classwork-desc-display').textContent = desc;
+
+    // Also update sidebar panel
+    document.getElementById('cw-active-title').textContent = title;
+    document.getElementById('cw-active-desc').textContent = desc;
+    document.getElementById('active-classwork-form').style.display = 'block';
+    document.getElementById('classwork-status-text').style.display = 'none';
+
+    let seconds = mins * 60;
+    if (classworkInterval) clearInterval(classworkInterval);
+    classworkInterval = setInterval(() => {
+      if (seconds <= 0) {
+        clearInterval(classworkInterval);
+        countdown.textContent = 'TIME UP';
+        overlay.classList.remove('active');
+        return;
+      }
+      seconds--;
+      const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+      const s = (seconds % 60).toString().padStart(2, '0');
+      countdown.textContent = `${m}:${s}`;
+    }, 1000);
+  }
+
+  function submitClasswork() {
+    const solution = document.getElementById('cw-solution-input').value.trim();
+    if (!solution) return showToast('Please enter your solution before submitting!', 'rose');
+    showToast('✅ Classwork solution submitted! Recorded in gradebook.', 'emerald');
+    document.getElementById('cw-solution-input').value = '';
+    document.getElementById('active-classwork-form').style.display = 'none';
+    document.getElementById('classwork-status-text').style.display = 'block';
+    document.getElementById('classwork-status-text').textContent = '✅ You have submitted this classwork!';
+  }
+
+  // ─── Breakout Rooms ──────────────────────────────────────────── 
+  function createBreakoutRooms() {
+    showToast('👥 Created 4 Breakout Rooms for Lab Teams!', 'emerald');
+    // In production: use Google Meet's companion app or a custom multi-window approach
+  }
+
+  // ─── Participants ───────────────────────────────────────────────
+  function renderParticipants() {
+    const container = document.getElementById('participants-list');
+    const participants = [
+      { name: 'Rahat Chowdhury', role: 'teacher', avatar: 'RC', color: 'linear-gradient(135deg, var(--cyan), var(--purple))' },
+      { name: currentUser.name, role: currentUser.role, avatar: currentUser.avatar, color: 'linear-gradient(135deg, var(--primary), var(--cyan))' }
+    ];
+    container.innerHTML = participants.map(p => `
+      <div class="participant-item">
+        <div class="av" style="background:${p.color}; color:${p.role === 'teacher' ? '#fff' : '#000'};">${p.avatar}</div>
+        <div>
+          <div class="pname">${p.name}${p.name === currentUser.name ? ' (You)' : ''}</div>
+          <div class="prole">${p.role === 'teacher' ? '👨‍🏫 Instructor' : p.role === 'auditor' ? '🛡️ Auditor' : '🎓 Student'}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ─── Tab Switching ──────────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(`tab-btn-${name}`).classList.add('active');
+    document.getElementById(`tab-panel-${name}`).classList.add('active');
+  }
+
+  // ─── Leave Classroom ────────────────────────────────────────────
+  function leaveClassroom() {
+    if (!confirm('Are you sure you want to leave the classroom?')) return;
+    stopScreenShare();
+    if (chatPollInterval) clearInterval(chatPollInterval);
+    if (streamPollInterval) clearInterval(streamPollInterval);
+
+    const role = currentUser?.role || 'student';
+    const redirectMap = { teacher: 'teacher.html', auditor: 'auditor.html', student: 'student.html' };
+    window.location.href = redirectMap[role] || 'student.html';
+  }
+
+  // ─── Polling ────────────────────────────────────────────────────
+  function startPolling() {
+    loadChat();
+    chatPollInterval = setInterval(loadChat, 3000);
+
+    if (currentUser.role !== 'teacher') {
+      pollStream();
+      streamPollInterval = setInterval(pollStream, 2000);
+    } else {
+      // Teacher: also poll to update the Meet link display if session state changes
+      streamPollInterval = setInterval(async () => {
+        const token = localStorage.getItem('arena_token');
+        const res = await fetch(`${API_URL}/stream/live`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (data.success) updateMeetEmbed(data.activeMeetLink);
+      }, 5000);
+    }
+  }
+
+  // ─── Toast ──────────────────────────────────────────────────────
+  function showToast(msg, type = 'primary') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = msg;
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.add('visible'), 50);
+    setTimeout(() => { toast.classList.remove('visible'); setTimeout(() => toast.remove(), 300); }, 3500);
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

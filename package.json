@@ -1,0 +1,17 @@
+{
+  "name": "arena-web-security-zoom-sdk-server",
+  "version": "1.0.0",
+  "description": "Arena Web Security LMS - Whitelabel Zoom Video SDK Integration Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@google-apps/meet": "^0.8.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "google-auth-library": "^11.0.0",
+    "googleapis": "^174.0.1"
+  }
+}

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auditor Portal — Arena Web Security</title>
+  <meta name="description" content="Arena Web Security Auditor & Admin Control Panel">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="app-root">
+
+  <!-- Auditor Sidebar -->
+  <aside class="sidebar">
+    <div class="brand-header">
+      <div class="brand-logo" style="background:linear-gradient(135deg, var(--purple), var(--rose));">🛡️</div>
+      <div class="brand-text">
+        <h1>ARENA SECURITY</h1>
+        <span>Auditor Portal</span>
+      </div>
+    </div>
+
+    <nav class="nav-menu">
+      <div class="nav-section-title">Auditor Operations</div>
+
+      <a class="nav-link active" id="nav-scheduler" onclick="showSection('scheduler', this)">
+        <svg fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <span>Schedule & Assign</span>
+      </a>
+
+      <a class="nav-link" id="nav-logs" onclick="showSection('logs', this)">
+        <svg fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+        <span>Master Attendance Logs</span>
+      </a>
+
+      <a class="nav-link" id="nav-audit" onclick="watchSilentAudit()">
+        <svg fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        <span>Watch Silent Audit</span>
+        <span class="badge badge-purple">AUDIT</span>
+      </a>
+
+      <div class="nav-section-title">Session</div>
+      <a onclick="logout()" class="nav-link" style="color:var(--rose); cursor:pointer;">
+        <span>🔒 Logout</span>
+      </a>
+    </nav>
+
+    <!-- Auditor Info -->
+    <div class="user-info-box">
+      <div class="user-avatar" id="aud-avatar" style="background:linear-gradient(135deg, var(--purple), var(--rose)); color:#fff;">AO</div>
+      <div class="user-details">
+        <h4 id="aud-name">Arena Auditor</h4>
+        <span style="color:var(--purple); font-weight:600;">Super Admin</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-wrapper">
+    <header class="top-header">
+      <div class="header-title">
+        <h2 id="page-title">Auditor Control Panel</h2>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-purple btn-sm" onclick="watchSilentAudit()">
+          🕵️ Watch Silent Live Audit
+        </button>
+      </div>
+    </header>
+
+    <div class="content-area">
+
+      <!-- ── Section: Scheduler ── -->
+      <div id="sec-scheduler" class="aud-section">
+
+        <!-- Assign Form -->
+        <div class="glass-card" style="margin-bottom:24px;">
+          <div class="section-header">
+            <div class="section-title">⚙️ Assign Class & Schedule Instructor</div>
+            <span class="badge badge-purple">Auditor Control</span>
+          </div>
+
+          <form id="assign-form" onsubmit="handleAssignment(event)">
+            <div class="grid-3">
+              <div class="form-group">
+                <label class="form-label" for="aud-batch">Select Batch</label>
+                <select id="aud-batch" class="form-control">
+                  <option value="B1">Batch 1: Web Security & Bug Bounty</option>
+                  <option value="B2">Batch 2: API Security & DevSecOps</option>
+                  <option value="B3">Batch 3: SOC & Threat Hunting</option>
+                  <option value="B4">Batch 4: Cloud Security</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="aud-slot">Day & Time Slot</label>
+                <select id="aud-slot" class="form-control">
+                  <option value="Thursday 9:30 PM - 11:30 PM">Thursday (বৃহস্পতি) 9:30 PM - 11:30 PM</option>
+                  <option value="Friday 9:30 PM - 11:30 PM">Friday (শুক্রবার) 9:30 PM - 11:30 PM</option>
+                  <option value="Saturday 9:30 PM - 11:30 PM">Saturday (শনি) 9:30 PM - 11:30 PM</option>
+                  <option value="Sunday 9:30 PM - 11:30 PM">Sunday (রবি) 9:30 PM - 11:30 PM</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="aud-teacher">Assign Instructor</label>
+                <select id="aud-teacher" class="form-control">
+                  <option value="Rahat Chowdhury">Rahat Chowdhury (Lead Instructor)</option>
+                  <option value="Fahim Ahmed">Fahim Ahmed (Senior PenTester)</option>
+                </select>
+              </div>
+
+              <div class="form-group" style="grid-column: span 3;">
+                <label class="form-label" for="aud-topic">Topic / Module Title</label>
+                <input type="text" id="aud-topic" class="form-control" placeholder="e.g. Command Injection & Reverse Shell Techniques" required>
+              </div>
+
+              <div style="grid-column: span 3; text-align:right;">
+                <button type="submit" class="btn btn-purple" id="btn-assign">
+                  ✅ Assign Teacher & Create Class Session
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- Master Schedule Table -->
+        <div class="glass-card">
+          <div class="section-header">
+            <div class="section-title">📊 Master Schedule & Audit View</div>
+            <button class="btn btn-outline btn-sm" onclick="loadData()">🔄 Refresh</button>
+          </div>
+          <div id="master-schedule-container"><p style="color:var(--text-muted);">Loading schedules...</p></div>
+        </div>
+      </div>
+
+      <!-- ── Section: Attendance Logs ── -->
+      <div id="sec-logs" class="aud-section" style="display:none;">
+        <div class="glass-card">
+          <div class="section-header">
+            <div class="section-title">📊 System Master Attendance & Audit Logs</div>
+            <button class="btn btn-outline btn-sm" id="btn-export" onclick="exportCSV()">📥 Export CSV</button>
+          </div>
+          <div id="attendance-log-container"><p style="color:var(--text-muted);">Loading logs...</p></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+  const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:4000/api'
+    : '/api';
+
+  let currentUser = null;
+  let allSchedules = [];
+  let allAttendance = [];
+
+  // ─── Auth ──────────────────────────────────────────────────────────────────
+  async function checkAuth() {
+    const token = localStorage.getItem('arena_token');
+    if (!token) return (window.location.href = 'login.html');
+
+    try {
+      const res = await fetch(`${API_URL}/auth/me`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+
+      if (!data.success || data.user.role !== 'auditor') return (window.location.href = 'login.html');
+
+      currentUser = data.user;
+      document.getElementById('aud-name').textContent = currentUser.name;
+      document.getElementById('aud-avatar').textContent = currentUser.avatar || 'AO';
+
+      await loadData();
+    } catch (e) {
+      window.location.href = 'login.html';
+    }
+  }
+
+  async function loadData() {
+    const token = localStorage.getItem('arena_token');
+
+    // Load schedules
+    const schedRes = await fetch(`${API_URL}/schedules`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const schedData = await schedRes.json();
+    if (schedData.success) {
+      allSchedules = schedData.schedules;
+      renderScheduleTable();
+    }
+
+    // Load attendance
+    const attRes = await fetch(`${API_URL}/attendance`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const attData = await attRes.json();
+    if (attData.success) {
+      allAttendance = attData.attendanceLogs;
+      renderAttendanceLogs();
+    }
+  }
+
+  function renderScheduleTable() {
+    const container = document.getElementById('master-schedule-container');
+    if (!allSchedules.length) {
+      container.innerHTML = '<p style="color:var(--text-muted);">No classes scheduled yet.</p>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table class="custom-table">
+        <thead>
+          <tr><th>Batch</th><th>Day</th><th>Instructor</th><th>Topic</th><th>Status</th><th>Video Session</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          ${allSchedules.map(s => `
+            <tr>
+              <td style="font-weight:700; color:var(--text-main); white-space:nowrap;">${s.batchName}</td>
+              <td>${s.day}</td>
+              <td style="color:var(--cyan); font-weight:600;">${s.teacherName}</td>
+              <td style="max-width:200px;">${s.topic}</td>
+              <td><span class="badge ${s.status === 'LIVE' ? 'badge-rose' : s.status === 'COMPLETED' ? 'badge-emerald' : 'badge-cyan'}">${s.status}</span></td>
+              <td>
+                ${s.meetLink
+                  ? `<a href="${s.meetLink}" target="_blank" style="color:var(--primary); font-size:0.8rem; font-family:var(--font-mono);">📹 Meet Active</a>`
+                  : `<span style="color:var(--text-dim); font-size:0.8rem;">—</span>`
+                }
+              </td>
+              <td>
+                ${s.status === 'LIVE'
+                  ? `<button class="btn btn-purple btn-sm" onclick="watchSilentAudit()">🕵️ Audit</button>`
+                  : `<span style="color:var(--text-dim); font-size:0.8rem;">Scheduled</span>`
+                }
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function renderAttendanceLogs() {
+    const container = document.getElementById('attendance-log-container');
+    if (!allAttendance.length) {
+      container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-muted);"><div style="font-size:2.5rem; margin-bottom:12px;">📊</div><p>No attendance recorded yet. Logs appear when students join live classes.</p></div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table class="custom-table">
+        <thead>
+          <tr><th>Student</th><th>Batch & Topic</th><th>Joined At</th><th>Left At</th><th>Duration</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          ${allAttendance.map(log => `
+            <tr>
+              <td style="font-weight:700; color:var(--text-main);">${log.studentName || 'Unknown'}</td>
+              <td>${log.batchName || '—'} - ${log.topic || '—'}</td>
+              <td>${log.joinedAt || '—'}</td>
+              <td>${log.leftAt || 'Still In Class'}</td>
+              <td style="color:var(--primary); font-weight:700;">${log.durationMins || '—'} Mins</td>
+              <td><span class="badge badge-emerald">VERIFIED</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function handleAssignment(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-assign');
+    btn.disabled = true;
+    btn.textContent = '🔄 Assigning...';
+
+    const batchId = document.getElementById('aud-batch').value;
+    const slot = document.getElementById('aud-slot').value;
+    const teacherName = document.getElementById('aud-teacher').value;
+    const topic = document.getElementById('aud-topic').value.trim();
+
+    const token = localStorage.getItem('arena_token');
+    try {
+      const res = await fetch(`${API_URL}/schedules/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ batchId, slot, teacherName, topic })
+      });
+      const data = await res.json();
+
+      document.getElementById('aud-topic').value = '';
+      showToast(`✅ Class assigned to ${teacherName}! The teacher will start the Google Meet session when the class begins.`, 'emerald');
+      await loadData();
+    } catch (err) {
+      showToast('⚠️ Failed to assign class. Please try again.', 'rose');
+    }
+
+    btn.disabled = false;
+    btn.textContent = '✅ Assign Teacher & Create Class Session';
+  }
+
+  function watchSilentAudit() {
+    const liveClass = allSchedules.find(s => s.status === 'LIVE');
+    if (!liveClass) {
+      showToast('⏰ No class is live right now to audit.', 'amber');
+      return;
+    }
+    window.location.href = 'classroom.html';
+  }
+
+  function exportCSV() {
+    if (!allAttendance.length) {
+      showToast('No attendance data to export.', 'amber');
+      return;
+    }
+    const rows = [
+      ['Student', 'Batch', 'Topic', 'Joined At', 'Left At', 'Duration (Mins)', 'Status'],
+      ...allAttendance.map(l => [l.studentName, l.batchName, l.topic, l.joinedAt, l.leftAt, l.durationMins, 'VERIFIED'])
+    ];
+    const csv = rows.map(r => r.map(v => `"${v || ''}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = `arena-attendance-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  }
+
+  function showSection(id, navEl) {
+    document.querySelectorAll('.aud-section').forEach(el => el.style.display = 'none');
+    const sec = document.getElementById(`sec-${id}`);
+    if (sec) sec.style.display = 'block';
+
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    if (navEl) navEl.classList.add('active');
+
+    const titles = { scheduler: 'Class Scheduler & Assignments', logs: 'Master Attendance Logs' };
+    document.getElementById('page-title').textContent = titles[id] || 'Auditor Portal';
+  }
+
+  function logout() {
+    localStorage.removeItem('arena_token');
+    localStorage.removeItem('arena_user');
+    window.location.href = 'login.html';
+  }
+
+  function showToast(msg, type = 'primary') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = msg;
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.add('visible'), 50);
+    setTimeout(() => { toast.classList.remove('visible'); setTimeout(() => toast.remove(), 300); }, 4000);
+  }
+
+  document.addEventListener('DOMContentLoaded', checkAuth);
+</script>
+</body>
+</html>
