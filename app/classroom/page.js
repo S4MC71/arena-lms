@@ -18,6 +18,7 @@ export default function LiveClassroom() {
   const [liveStream, setLiveStream] = useState({ isSharing: false, broadcasterName: '', frame: null });
   const [isLocalSharing, setIsLocalSharing] = useState(false);
   const [activeMeetLink, setActiveMeetLink] = useState('');
+  const [scheduleDetails, setScheduleDetails] = useState(null);
 
   const localVideoRef = useRef(null);
   const screenStreamRef = useRef(null);
@@ -57,6 +58,7 @@ export default function LiveClassroom() {
     // Load initial chat history & live stream state directly from Supabase
     fetchChatMessages(scheduleId);
     pollLiveStream();
+    fetchScheduleDetails(scheduleId);
 
     // 1. Fast polling fallback every 1000ms for live screen frames
     const interval = setInterval(() => {
@@ -84,7 +86,7 @@ export default function LiveClassroom() {
 
     // 3. Supabase Realtime Subscription for Live Screen Share Frames (<100ms)
     const streamChannel = supabase
-      .channel('realtime_live_stream_channel_v3')
+      .channel('realtime_live_stream_channel_v4')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'live_stream' },
@@ -106,6 +108,16 @@ export default function LiveClassroom() {
       supabase.removeChannel(streamChannel);
     };
   }, [scheduleId, isLocalSharing]);
+
+  const fetchScheduleDetails = async (classId) => {
+    try {
+      const { data } = await supabase.from('schedules').select('*').eq('id', classId).limit(1);
+      if (data && data.length > 0) {
+        setScheduleDetails(data[0]);
+        if (data[0].meet_link) setActiveMeetLink(data[0].meet_link);
+      }
+    } catch (e) {}
+  };
 
   const fetchChatMessages = async (classId) => {
     try {
@@ -129,13 +141,13 @@ export default function LiveClassroom() {
 
   const pollLiveStream = async () => {
     try {
-      // Direct Supabase query for screen frame
-      const { data } = await supabase.from('live_stream').select('is_sharing, broadcaster_name, frame').eq('id', 1).single();
-      if (data && !isLocalSharing) {
+      // Safe array limit query (never errors)
+      const { data } = await supabase.from('live_stream').select('is_sharing, broadcaster_name, frame').limit(1);
+      if (data && data.length > 0 && !isLocalSharing) {
         setLiveStream({
-          isSharing: !!data.is_sharing,
-          broadcasterName: data.broadcaster_name || 'Instructor',
-          frame: data.frame || null
+          isSharing: !!data[0].is_sharing,
+          broadcasterName: data[0].broadcaster_name || 'Instructor',
+          frame: data[0].frame || null
         });
       }
 
@@ -301,6 +313,8 @@ export default function LiveClassroom() {
     } catch (err) {}
   };
 
+  const effectiveMeetLink = activeMeetLink || scheduleDetails?.meet_link;
+
   return (
     <div style={{ background: '#030712', minHeight: '100vh', padding: '16px', display: 'flex', flexDirection: 'column' }}>
       
@@ -309,15 +323,15 @@ export default function LiveClassroom() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div className="brand-logo" style={{ width: '34px', height: '34px', fontSize: '1.1rem' }}>🛡️</div>
           <div>
-            <h2 style={{ fontSize: '1.05rem', fontWeight: 800 }}>Batch 1 — Web Security & Bug Bounty Live Session</h2>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Instructor: Rahat Chowdhury | Session ID: {scheduleId}</span>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: 800 }}>{scheduleDetails?.batch_name || 'Batch 1 — Live Classroom Session'}</h2>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Instructor: {scheduleDetails?.teacher_name || 'Rahat Chowdhury'} | Topic: {scheduleDetails?.topic || 'Web Security'}</span>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          {activeMeetLink && (
-            <a href={activeMeetLink} target="_blank" rel="noopener noreferrer" className="btn btn-cyan btn-sm">
-              🟢 Join Google Meet Room
+          {effectiveMeetLink && (
+            <a href={effectiveMeetLink} target="_blank" rel="noopener noreferrer" className="btn btn-cyan btn-sm">
+              🟢 Open Google Meet HD Session
             </a>
           )}
           <span className="badge badge-rose">🔴 LIVE ZOOM SDK CANVAS</span>
@@ -359,12 +373,21 @@ export default function LiveClassroom() {
               liveStream.isSharing && liveStream.frame ? (
                 <img src={liveStream.frame} alt="Teacher Screen Broadcast" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               ) : (
-                <div className="video-placeholder">
-                  <div className="avatar-large">RC</div>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Rahat Chowdhury (Instructor)</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '4px' }}>
-                    {liveStream.isSharing ? `Broadcasting Desktop Screen (${liveStream.broadcasterName})` : 'Microphone Active • Click Share Screen Below to Stream'}
+                <div className="video-placeholder" style={{ padding: '30px', textAlign: 'center' }}>
+                  <div className="avatar-large" style={{ margin: '0 auto 16px auto' }}>RC</div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{scheduleDetails?.teacher_name || 'Rahat Chowdhury'} (Instructor)</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '6px', marginBottom: '20px' }}>
+                    {liveStream.isSharing ? `Broadcasting Desktop Screen (${liveStream.broadcasterName})` : 'Microphone Active • Live Stream Broadcast Standing By'}
                   </p>
+
+                  {/* Prominent Google Meet Join Button Overlay inside Video Canvas */}
+                  {effectiveMeetLink && (
+                    <div style={{ marginTop: '10px' }}>
+                      <a href={effectiveMeetLink} target="_blank" rel="noopener noreferrer" className="btn btn-cyan btn-lg" style={{ boxShadow: '0 0 20px rgba(6,182,212,0.4)' }}>
+                        🟢 Join Google Meet HD Screen Share & Video Session
+                      </a>
+                    </div>
+                  )}
                 </div>
               )
             )}
@@ -372,7 +395,7 @@ export default function LiveClassroom() {
             {/* Active Speaker Info Overlay */}
             <div className="video-overlay-info">
               <span className="status-indicator live"></span>
-              <span><strong>{isLocalSharing ? currentUser.name : (liveStream.broadcasterName || 'Rahat Chowdhury')}</strong> (Host)</span>
+              <span><strong>{isLocalSharing ? currentUser.name : (liveStream.broadcasterName || scheduleDetails?.teacher_name || 'Rahat Chowdhury')}</strong> (Host)</span>
             </div>
 
           </div>
@@ -398,9 +421,11 @@ export default function LiveClassroom() {
             </div>
 
             <div className="control-group">
-              <div className="timer-badge">
-                ⏱️ 01:42:15
-              </div>
+              {effectiveMeetLink && (
+                <a href={effectiveMeetLink} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--cyan)', fontSize: '0.82rem', fontWeight: 700, textDecoration: 'none' }}>
+                  🟢 Google Meet Active
+                </a>
+              )}
             </div>
 
             <div className="control-group">
