@@ -1,6 +1,5 @@
 const { db, verifyToken, setCors } = require('../_db');
 const { getAuthClientForUser } = require('../_google');
-const { SpacesServiceClient } = require('@google-apps/meet');
 
 module.exports = async (req, res) => {
   setCors(res);
@@ -23,6 +22,7 @@ module.exports = async (req, res) => {
     const authClient = getAuthClientForUser(user.id);
     if (authClient) {
       try {
+        const { SpacesServiceClient } = require('@google-apps/meet');
         const meetClient = new SpacesServiceClient({ authClient });
         const [response] = await meetClient.createSpace({
           space: { config: { accessType: 'OPEN' } }

@@ -4,12 +4,13 @@
  */
 const { db, verifyToken, setCors } = require('../../_db');
 const { getAuthClientForUser } = require('../../_google');
-const { google } = require('googleapis');
 
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { google } = require('googleapis');
 
   const user = verifyToken(req.headers.authorization);
   if (!user || user.role !== 'teacher') return res.status(403).json({ error: 'Teachers only' });

@@ -3,7 +3,7 @@
  * Shared by all Google API serverless functions
  */
 
-const { google } = require('googleapis');
+const { OAuth2 } = require('google-auth-library');
 const { db } = require('./_db');
 
 const SCOPES = [
@@ -23,7 +23,7 @@ const SCOPES = [
  * Creates a new OAuth2 client using env credentials
  */
 function createOAuth2Client() {
-  return new google.auth.OAuth2(
+  return new OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.GOOGLE_REDIRECT_URI || 'http://localhost:4000/api/google/oauth-callback'
