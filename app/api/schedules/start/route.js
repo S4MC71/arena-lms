@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, verifyToken } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { getAuthClientForUser } from '@/lib/google';
 
 export async function POST(request) {
@@ -11,12 +12,6 @@ export async function POST(request) {
   }
 
   const { scheduleId, meetLink: providedMeetLink } = await request.json();
-  const sched = db.schedules.find(s => s.id === scheduleId);
-  if (!sched) {
-    return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
-  }
-
-  sched.status = 'LIVE';
   let meetLink = providedMeetLink;
 
   if (!meetLink) {
@@ -25,9 +20,7 @@ export async function POST(request) {
       try {
         const { SpacesServiceClient } = require('@google-apps/meet');
         const meetClient = new SpacesServiceClient({ authClient });
-        const [response] = await meetClient.createSpace({
-          space: { config: { accessType: 'OPEN' } }
-        });
+        const [response] = await meetClient.createSpace({ space: { config: { accessType: 'OPEN' } } });
         meetLink = response.meetingUri;
       } catch (err) {
         console.error('Meet creation error:', err);
@@ -35,9 +28,20 @@ export async function POST(request) {
     }
   }
 
-  if (meetLink) sched.meetLink = meetLink;
-  db.activeMeetLink = sched.meetLink;
-  db.activeMeetScheduleId = sched.id;
+  try {
+    await supabase.from('schedules').update({
+      status: 'LIVE',
+      meet_link: meetLink || null
+    }).eq('id', scheduleId);
+  } catch (e) {}
 
-  return NextResponse.json({ success: true, schedule: sched, meetLink: sched.meetLink });
+  const sched = db.schedules.find(s => s.id === scheduleId);
+  if (sched) {
+    sched.status = 'LIVE';
+    if (meetLink) sched.meetLink = meetLink;
+  }
+  db.activeMeetLink = meetLink || (sched ? sched.meetLink : null);
+  db.activeMeetScheduleId = scheduleId;
+
+  return NextResponse.json({ success: true, schedule: sched || { id: scheduleId, status: 'LIVE', meetLink }, meetLink });
 }

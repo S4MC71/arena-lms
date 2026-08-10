@@ -89,6 +89,27 @@ export default function AuditorPortal() {
     }
   };
 
+  const handleDeleteSchedule = async (schedId) => {
+    if (!confirm('Are you sure you want to delete this class schedule?')) return;
+    const token = localStorage.getItem('arena_token');
+
+    try {
+      const res = await fetch('/api/schedules/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ scheduleId: schedId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast('🗑️ Class schedule deleted successfully!');
+        await loadAllData(token);
+        setTimeout(() => setToast(''), 4000);
+      }
+    } catch (e) {
+      alert('Error deleting schedule');
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('arena_token');
     localStorage.removeItem('arena_user');
@@ -216,7 +237,7 @@ export default function AuditorPortal() {
                       <th>Assigned Instructor</th>
                       <th>Topic</th>
                       <th>Status</th>
-                      <th>Silent Audit</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -233,10 +254,13 @@ export default function AuditorPortal() {
                             <span className="badge badge-emerald">UPCOMING</span>
                           )}
                         </td>
-                        <td>
+                        <td style={{ display: 'flex', gap: '8px' }}>
                           <Link href="/classroom" className="btn btn-outline btn-sm">
-                            👁️ Audit Live Session
+                            👁️ Audit Session
                           </Link>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDeleteSchedule(s.id)}>
+                            🗑️ Delete
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -263,7 +287,8 @@ export default function AuditorPortal() {
                     <th>Batch</th>
                     <th>Slot</th>
                     <th>Topic</th>
-                    <th>Instructor</th>
+                    <th>Assigned Instructor</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -272,7 +297,12 @@ export default function AuditorPortal() {
                       <td>{s.batchName}</td>
                       <td>{s.day}</td>
                       <td>{s.topic}</td>
-                      <td>{s.teacherName}</td>
+                      <td><strong>{s.teacherName}</strong></td>
+                      <td>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleDeleteSchedule(s.id)}>
+                          🗑️ Delete Slot
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -322,7 +352,7 @@ export default function AuditorPortal() {
         <div className="modal-overlay active">
           <div className="modal-box">
             <div className="modal-header">
-              <h3>Schedule New Class Slot</h3>
+              <h3>Schedule New Class Slot & Assign Instructor</h3>
               <button className="close-btn" onClick={() => setShowModal(false)}>&times;</button>
             </div>
 
@@ -348,12 +378,10 @@ export default function AuditorPortal() {
 
             <div className="form-group">
               <label className="form-label">Assign Instructor:</label>
-              <input
-                type="text"
-                className="form-control"
-                value={teacherName}
-                onChange={(e) => setTeacherName(e.target.value)}
-              />
+              <select className="form-control" value={teacherName} onChange={(e) => setTeacherName(e.target.value)}>
+                <option value="Rahat Chowdhury">Rahat Chowdhury (Lead Web Security Instructor)</option>
+                <option value="Mahfuzur Rahman">Mahfuzur Rahman (SOC & Mobile Pentesting Specialist)</option>
+              </select>
             </div>
 
             <div className="form-group">

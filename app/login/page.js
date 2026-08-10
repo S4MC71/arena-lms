@@ -141,8 +141,13 @@ export default function LoginPage() {
               </button>
 
               <button type="button" className="btn btn-outline btn-sm" onClick={() => handleQuickLogin('teacher@arena.com', 'pass123')} style={{ justifyContent: 'space-between', borderColor: 'rgba(6,182,212,0.4)' }}>
-                <span>👨‍🏫 Teacher — Rahat Chowdhury</span>
+                <span>👨‍🏫 Teacher 1 — Rahat Chowdhury</span>
                 <span style={{ color: 'var(--cyan)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>teacher@arena.com</span>
+              </button>
+
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => handleQuickLogin('teacher2@arena.com', 'pass123')} style={{ justifyContent: 'space-between', borderColor: 'rgba(6,182,212,0.4)' }}>
+                <span>👨‍🏫 Teacher 2 — Mahfuzur Rahman</span>
+                <span style={{ color: 'var(--cyan)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>teacher2@arena.com</span>
               </button>
 
               <button type="button" className="btn btn-outline btn-sm" onClick={() => handleQuickLogin('auditor@arena.com', 'pass123')} style={{ justifyContent: 'space-between', borderColor: 'rgba(139,92,246,0.4)' }}>

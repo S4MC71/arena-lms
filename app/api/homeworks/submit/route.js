@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, verifyToken } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request) {
   const authHeader = request.headers.get('authorization');
@@ -10,24 +11,34 @@ export async function POST(request) {
   }
 
   const { homeworkId, submissionContent } = await request.json();
-  const hw = db.homeworks.find(h => h.id === homeworkId);
-  if (!hw) {
-    return NextResponse.json({ error: 'Homework assignment not found' }, { status: 404 });
-  }
+  const subId = `SUB-${Date.now()}`;
 
-  const existingSub = hw.submissions.find(s => s.studentId === user.id);
-  if (existingSub) {
-    existingSub.content = submissionContent;
-    existingSub.submittedAt = new Date().toISOString();
-  } else {
-    hw.submissions.push({
-      studentId: user.id,
-      studentName: user.name,
+  try {
+    await supabase.from('submissions').upsert([{
+      id: subId,
+      homework_id: homeworkId,
+      student_id: user.id,
+      student_name: user.name,
       status: 'Submitted',
       score: 'Pending',
-      content: submissionContent,
-      submittedAt: new Date().toISOString()
-    });
+      content: submissionContent
+    }]);
+  } catch (e) {}
+
+  const hw = db.homeworks.find(h => h.id === homeworkId);
+  if (hw) {
+    const existingSub = hw.submissions.find(s => s.studentId === user.id);
+    if (existingSub) {
+      existingSub.content = submissionContent;
+    } else {
+      hw.submissions.push({
+        studentId: user.id,
+        studentName: user.name,
+        status: 'Submitted',
+        score: 'Pending',
+        content: submissionContent
+      });
+    }
   }
 
   return NextResponse.json({ success: true, message: 'Homework submitted successfully!' });
