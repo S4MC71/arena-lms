@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
 export default function LiveClassroom() {
   const [activeTab, setActiveTab] = useState('chat');
@@ -27,12 +28,35 @@ export default function LiveClassroom() {
     fetchChatMessages();
     pollLiveStream();
 
+    // 1. Polling interval fallback
     const interval = setInterval(() => {
       fetchChatMessages();
       pollLiveStream();
     }, 3000);
 
-    return () => clearInterval(interval);
+    // 2. Supabase Realtime Subscription for instantaneous comments (<100ms)
+    const channel = supabase
+      .channel('realtime_chat_messages')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+        (payload) => {
+          if (payload.new) {
+            setMessages(prev => {
+              const map = new Map();
+              prev.forEach(m => map.set(m.id, m));
+              map.set(payload.new.id, payload.new);
+              return Array.from(map.values());
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchChatMessages = async () => {

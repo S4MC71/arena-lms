@@ -99,13 +99,19 @@ export default function AuditorPortal() {
 
     const token = localStorage.getItem('arena_token');
     try {
-      await fetch('/api/schedules/delete', {
+      const res = await fetch('/api/schedules/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ scheduleId: schedId })
       });
+      const data = await res.json();
+      if (!data.success) {
+        alert('Delete failed: ' + (data.error || 'Unknown error'));
+        await loadAllData(token);
+      }
     } catch (e) {
-      alert('Error deleting schedule');
+      alert('Error deleting schedule: ' + e.message);
+      await loadAllData(token);
     }
   };
 
