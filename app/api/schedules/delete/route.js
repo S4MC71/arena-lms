@@ -16,8 +16,11 @@ export async function POST(request) {
   }
 
   try {
-    await supabase.from('schedules').delete().eq('id', scheduleId);
-  } catch (e) {}
+    const { error } = await supabase.from('schedules').delete().eq('id', scheduleId);
+    if (error) console.error('Supabase delete schedule error:', error);
+  } catch (e) {
+    console.error('Supabase delete exception:', e);
+  }
 
   db.schedules = db.schedules.filter(s => s.id !== scheduleId);
   return NextResponse.json({ success: true, message: 'Schedule deleted successfully' });

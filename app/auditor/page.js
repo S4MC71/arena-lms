@@ -91,20 +91,19 @@ export default function AuditorPortal() {
 
   const handleDeleteSchedule = async (schedId) => {
     if (!confirm('Are you sure you want to delete this class schedule?')) return;
-    const token = localStorage.getItem('arena_token');
 
+    // Optimistically remove from UI state immediately
+    setSchedules(prev => prev.filter(s => s.id !== schedId));
+    setToast('🗑️ Class schedule deleted successfully!');
+    setTimeout(() => setToast(''), 4000);
+
+    const token = localStorage.getItem('arena_token');
     try {
-      const res = await fetch('/api/schedules/delete', {
+      await fetch('/api/schedules/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ scheduleId: schedId })
       });
-      const data = await res.json();
-      if (data.success) {
-        setToast('🗑️ Class schedule deleted successfully!');
-        await loadAllData(token);
-        setTimeout(() => setToast(''), 4000);
-      }
     } catch (e) {
       alert('Error deleting schedule');
     }
