@@ -141,7 +141,6 @@
       };
 
       const targetPage = redirectMap[data.user.role] || 'student.html';
-      alert('🚀 Login Successful! Redirecting to: /' + targetPage);
       window.location.replace('/' + targetPage);
 
     } catch (err) {

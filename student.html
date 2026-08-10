@@ -214,22 +214,15 @@
   // ─── Auth ──────────────────────────────────────────────────────────────────
   async function checkAuth() {
     const token = localStorage.getItem('arena_token');
-    alert('🔑 Student Page Loaded! Token: ' + (token ? token.substring(0, 15) + '...' : 'NONE'));
     if (!token) return (window.location.href = 'login.html');
 
     try {
       const res = await fetch(`${API_URL}/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      alert('📥 /api/auth/me HTTP Status: ' + res.status);
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch (e) { alert('❌ Non-JSON from /auth/me: ' + text.substring(0, 200)); }
-
-      alert('👤 Auth Me Data: ' + JSON.stringify(data));
+      const data = await res.json();
 
       if (!data.success || data.user.role !== 'student') {
-        alert('⛔ Role Mismatch or success false! User role: ' + (data && data.user ? data.user.role : 'None'));
         return (window.location.href = 'login.html');
       }
 
