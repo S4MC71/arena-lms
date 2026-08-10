@@ -17,7 +17,6 @@ export default function LiveClassroom() {
   // Live Stream & Screen Sharing state
   const [liveStream, setLiveStream] = useState({ isSharing: false, broadcasterName: '', frame: null });
   const [isLocalSharing, setIsLocalSharing] = useState(false);
-  const [activeMeetLink, setActiveMeetLink] = useState('');
   const [scheduleDetails, setScheduleDetails] = useState(null);
 
   const localVideoRef = useRef(null);
@@ -60,10 +59,10 @@ export default function LiveClassroom() {
     pollLiveStream();
     fetchScheduleDetails(scheduleId);
 
-    // 1. Fast polling fallback every 1000ms for live screen frames
+    // 1. Fast polling fallback every 800ms for live screen frames
     const interval = setInterval(() => {
       pollLiveStream();
-    }, 1000);
+    }, 800);
 
     // 2. Supabase Realtime Subscription for chat comments
     const chatChannel = supabase
@@ -86,7 +85,7 @@ export default function LiveClassroom() {
 
     // 3. Supabase Realtime Subscription for Live Screen Share Frames (<100ms)
     const streamChannel = supabase
-      .channel('realtime_live_stream_channel_v4')
+      .channel('realtime_live_stream_channel_v5')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'live_stream' },
@@ -114,7 +113,6 @@ export default function LiveClassroom() {
       const { data } = await supabase.from('schedules').select('*').eq('id', classId).limit(1);
       if (data && data.length > 0) {
         setScheduleDetails(data[0]);
-        if (data[0].meet_link) setActiveMeetLink(data[0].meet_link);
       }
     } catch (e) {}
   };
@@ -141,7 +139,7 @@ export default function LiveClassroom() {
 
   const pollLiveStream = async () => {
     try {
-      // Safe array limit query (never errors)
+      // Safe array limit query for live screen frame
       const { data } = await supabase.from('live_stream').select('is_sharing, broadcaster_name, frame').limit(1);
       if (data && data.length > 0 && !isLocalSharing) {
         setLiveStream({
@@ -149,13 +147,6 @@ export default function LiveClassroom() {
           broadcasterName: data[0].broadcaster_name || 'Instructor',
           frame: data[0].frame || null
         });
-      }
-
-      // API route fallback
-      const res = await fetch('/api/stream/live');
-      const apiData = await res.json();
-      if (apiData.success) {
-        if (apiData.activeMeetLink) setActiveMeetLink(apiData.activeMeetLink);
       }
     } catch (e) {}
   };
@@ -179,18 +170,21 @@ export default function LiveClassroom() {
         screenStreamRef.current = stream;
         setIsLocalSharing(true);
 
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-          localVideoRef.current.play().catch(() => {});
-        }
+        // Attach stream to local preview video element
+        setTimeout(() => {
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+            localVideoRef.current.play().catch(() => {});
+          }
+        }, 100);
 
         // Detect native browser "Stop Sharing" floating bar click
         stream.getVideoTracks()[0].onended = () => {
           stopScreenSharing();
         };
 
-        // Start broadcasting captured frames from localVideoRef
-        startBroadcastingFrames();
+        // Start broadcasting captured frames directly from stream
+        startBroadcastingFrames(stream);
 
       } catch (err) {
         console.error('Screen capture error:', err);
@@ -226,34 +220,29 @@ export default function LiveClassroom() {
         updated_at: new Date().toISOString()
       }]);
     } catch (e) {}
-
-    const token = localStorage.getItem('arena_token');
-    try {
-      await fetch('/api/stream/broadcast', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ isSharing: false, broadcasterName: currentUser.name, frame: null })
-      });
-    } catch (e) {}
   };
 
-  const startBroadcastingFrames = () => {
+  const startBroadcastingFrames = (stream) => {
+    const captureVideo = document.createElement('video');
+    captureVideo.srcObject = stream;
+    captureVideo.muted = true;
+    captureVideo.playsInline = true;
+    captureVideo.play().catch(() => {});
+
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
     if (broadcastIntervalRef.current) clearInterval(broadcastIntervalRef.current);
 
     broadcastIntervalRef.current = setInterval(async () => {
-      const videoEl = localVideoRef.current;
-      if (videoEl && videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
-        canvas.width = Math.min(videoEl.videoWidth, 800);
-        canvas.height = Math.min(videoEl.videoHeight, 450);
-        ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+      if (captureVideo.videoWidth > 0 && captureVideo.videoHeight > 0) {
+        canvas.width = Math.min(captureVideo.videoWidth, 960);
+        canvas.height = Math.min(captureVideo.videoHeight, 540);
+        ctx.drawImage(captureVideo, 0, 0, canvas.width, canvas.height);
 
         const frameData = canvas.toDataURL('image/jpeg', 0.45);
-        const token = localStorage.getItem('arena_token');
 
-        // 1. Direct Supabase Update for Instant Realtime Broadcast to All Students
+        // Direct Supabase Update for Instant Realtime Broadcast to All Students
         try {
           await supabase.from('live_stream').upsert([{
             id: 1,
@@ -263,17 +252,8 @@ export default function LiveClassroom() {
             updated_at: new Date().toISOString()
           }]);
         } catch (e) {}
-
-        // 2. API route fallback
-        try {
-          await fetch('/api/stream/broadcast', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ isSharing: true, frame: frameData, broadcasterName: currentUser.name })
-          });
-        } catch (e) {}
       }
-    }, 500);
+    }, 400);
   };
 
   const handleSendChat = async (e) => {
@@ -302,18 +282,7 @@ export default function LiveClassroom() {
     try {
       await supabase.from('chat_messages').insert([newMsg]);
     } catch (err) {}
-
-    try {
-      const token = localStorage.getItem('arena_token');
-      await fetch('/api/chat/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ text: textToSend, authorName: currentUser.name, scheduleId })
-      });
-    } catch (err) {}
   };
-
-  const effectiveMeetLink = activeMeetLink || scheduleDetails?.meet_link;
 
   return (
     <div style={{ background: '#030712', minHeight: '100vh', padding: '16px', display: 'flex', flexDirection: 'column' }}>
@@ -329,13 +298,8 @@ export default function LiveClassroom() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          {effectiveMeetLink && (
-            <a href={effectiveMeetLink} target="_blank" rel="noopener noreferrer" className="btn btn-cyan btn-sm">
-              🟢 Open Google Meet HD Session
-            </a>
-          )}
-          <span className="badge badge-rose">🔴 LIVE ZOOM SDK CANVAS</span>
-          <Link href="/student" className="btn btn-outline btn-sm">
+          <span className="badge badge-rose">🔴 ARENA LIVE CANVAS</span>
+          <Link href={currentUser.role === 'teacher' ? '/teacher' : (currentUser.role === 'auditor' ? '/auditor' : '/student')} className="btn btn-outline btn-sm">
             🚪 Exit Session
           </Link>
         </div>
@@ -376,18 +340,9 @@ export default function LiveClassroom() {
                 <div className="video-placeholder" style={{ padding: '30px', textAlign: 'center' }}>
                   <div className="avatar-large" style={{ margin: '0 auto 16px auto' }}>RC</div>
                   <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{scheduleDetails?.teacher_name || 'Rahat Chowdhury'} (Instructor)</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '6px', marginBottom: '20px' }}>
-                    {liveStream.isSharing ? `Broadcasting Desktop Screen (${liveStream.broadcasterName})` : 'Microphone Active • Live Stream Broadcast Standing By'}
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '6px' }}>
+                    {liveStream.isSharing ? `Broadcasting Desktop Screen (${liveStream.broadcasterName})` : 'Microphone Active • Live Session Standing By'}
                   </p>
-
-                  {/* Prominent Google Meet Join Button Overlay inside Video Canvas */}
-                  {effectiveMeetLink && (
-                    <div style={{ marginTop: '10px' }}>
-                      <a href={effectiveMeetLink} target="_blank" rel="noopener noreferrer" className="btn btn-cyan btn-lg" style={{ boxShadow: '0 0 20px rgba(6,182,212,0.4)' }}>
-                        🟢 Join Google Meet HD Screen Share & Video Session
-                      </a>
-                    </div>
-                  )}
                 </div>
               )
             )}
@@ -411,25 +366,25 @@ export default function LiveClassroom() {
               </button>
               
               {/* Screen Share Control Button for Instructors / Presenters */}
-              <button
-                className={`btn ${isLocalSharing ? 'btn-danger' : 'btn-purple'} btn-sm`}
-                onClick={handleToggleScreenShare}
-                style={{ marginLeft: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                {isLocalSharing ? '⏹️ Stop Screen Share' : '🖥️ Share Screen Live'}
-              </button>
-            </div>
-
-            <div className="control-group">
-              {effectiveMeetLink && (
-                <a href={effectiveMeetLink} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--cyan)', fontSize: '0.82rem', fontWeight: 700, textDecoration: 'none' }}>
-                  🟢 Google Meet Active
-                </a>
+              {(currentUser.role === 'teacher' || currentUser.role === 'auditor') && (
+                <button
+                  className={`btn ${isLocalSharing ? 'btn-danger' : 'btn-purple'} btn-sm`}
+                  onClick={handleToggleScreenShare}
+                  style={{ marginLeft: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  {isLocalSharing ? '⏹️ Stop Screen Share' : '🖥️ Share Screen Live'}
+                </button>
               )}
             </div>
 
             <div className="control-group">
-              <Link href="/student" className="end-class-btn">
+              <div className="timer-badge">
+                ⏱️ 01:42:15
+              </div>
+            </div>
+
+            <div className="control-group">
+              <Link href={currentUser.role === 'teacher' ? '/teacher' : (currentUser.role === 'auditor' ? '/auditor' : '/student')} className="end-class-btn">
                 Leave Classroom
               </Link>
             </div>
