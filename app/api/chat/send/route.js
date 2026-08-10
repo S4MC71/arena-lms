@@ -23,9 +23,10 @@ export async function POST(request) {
   };
 
   try {
-    await supabase.from('chat_messages').insert([msg]);
+    const { data, error } = await supabase.from('chat_messages').insert([msg]).select();
+    if (error) console.error('Supabase chat insert error:', error);
   } catch (e) {
-    console.error('Supabase insert error:', e);
+    console.error('Supabase chat exception:', e);
   }
 
   db.chatMessages.push(msg);

@@ -39,7 +39,14 @@ export default function LiveClassroom() {
     try {
       const res = await fetch('/api/chat/messages');
       const data = await res.json();
-      if (data.success) setMessages(data.messages);
+      if (data.success && Array.isArray(data.messages)) {
+        setMessages(prev => {
+          const map = new Map();
+          prev.forEach(m => map.set(m.id, m));
+          data.messages.forEach(m => map.set(m.id, m));
+          return Array.from(map.values());
+        });
+      }
     } catch (e) {}
   };
 
