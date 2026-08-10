@@ -142,12 +142,25 @@ const db = global._arenaDb;
 // ─── JWT Helpers ─────────────────────────────────────────────────────────────
 const crypto = require('crypto');
 
+function base64UrlEncode(str) {
+  return Buffer.from(str).toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+}
+
+function base64UrlDecode(str) {
+  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) base64 += '=';
+  return Buffer.from(base64, 'base64').toString('utf8');
+}
+
 function createToken(user) {
-  const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
   const header = { alg: 'HS256', typ: 'JWT' };
   const payload = { id: user.id, email: user.email, role: user.role, name: user.name, iat: Math.floor(Date.now() / 1000) };
-  const unsigned = `${b64(header)}.${b64(payload)}`;
-  const sig = crypto.createHmac('sha256', JWT_SECRET).update(unsigned).digest('base64url');
+  const unsigned = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(payload))}`;
+  const sig = crypto.createHmac('sha256', JWT_SECRET).update(unsigned).digest('base64')
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
   return `${unsigned}.${sig}`;
 }
 
@@ -156,9 +169,12 @@ function verifyToken(authHeader) {
   const token = authHeader.split(' ')[1];
   try {
     const parts = token.split('.');
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+    if (parts.length !== 3) return null;
+    const payloadStr = base64UrlDecode(parts[1]);
+    const payload = JSON.parse(payloadStr);
     return db.users.find(u => u.id === payload.id) || null;
-  } catch {
+  } catch (err) {
+    console.error('verifyToken Error:', err);
     return null;
   }
 }
