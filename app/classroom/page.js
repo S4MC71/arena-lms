@@ -15,7 +15,7 @@ export default function LiveClassroom() {
   const [currentUser, setCurrentUser] = useState({ name: 'Tanvir Hossain', role: 'student', watermarkText: 'STD-1001 • Tanvir Hossain • 10.10.14.5' });
   
   // Live Stream & Screen Sharing state
-  const [liveStream, setLiveStream] = useState({ isSharing: false, broadcasterName: '' });
+  const [liveStream, setLiveStream] = useState({ isSharing: false, broadcasterName: '', frame: null });
   const [isLocalSharing, setIsLocalSharing] = useState(false);
   const [activeMeetLink, setActiveMeetLink] = useState('');
 
@@ -54,14 +54,14 @@ export default function LiveClassroom() {
   useEffect(() => {
     if (!scheduleId) return;
 
-    // Load chat history & stream status
+    // Load initial chat history & live stream state directly from Supabase
     fetchChatMessages(scheduleId);
     pollLiveStream();
 
-    // 1. Polling fallback for live stream & meet link
+    // 1. Polling fallback for live stream & meet link every 2.5 seconds
     const interval = setInterval(() => {
       pollLiveStream();
-    }, 4000);
+    }, 2500);
 
     // 2. Supabase Realtime Subscription for chat comments
     const chatChannel = supabase
@@ -82,16 +82,16 @@ export default function LiveClassroom() {
       )
       .subscribe();
 
-    // 3. Supabase Realtime Subscription for Live Screen Share Frames
+    // 3. Supabase Realtime Subscription for Live Screen Share Frames (<100ms)
     const streamChannel = supabase
-      .channel('realtime_live_stream_channel')
+      .channel('realtime_live_stream_channel_v2')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'live_stream' },
         (payload) => {
-          if (payload.new) {
+          if (payload.new && !isLocalSharing) {
             setLiveStream({
-              isSharing: payload.new.is_sharing,
+              isSharing: !!payload.new.is_sharing,
               broadcasterName: payload.new.broadcaster_name,
               frame: payload.new.frame
             });
@@ -105,7 +105,7 @@ export default function LiveClassroom() {
       supabase.removeChannel(chatChannel);
       supabase.removeChannel(streamChannel);
     };
-  }, [scheduleId]);
+  }, [scheduleId, isLocalSharing]);
 
   const fetchChatMessages = async (classId) => {
     try {
@@ -129,13 +129,21 @@ export default function LiveClassroom() {
 
   const pollLiveStream = async () => {
     try {
+      // Direct Supabase query for screen frame
+      const { data } = await supabase.from('live_stream').select('*').eq('id', 1).single();
+      if (data && !isLocalSharing) {
+        setLiveStream({
+          isSharing: !!data.is_sharing,
+          broadcasterName: data.broadcaster_name,
+          frame: data.frame
+        });
+      }
+
+      // API route fallback
       const res = await fetch('/api/stream/live');
-      const data = await res.json();
-      if (data.success) {
-        if (!isLocalSharing) {
-          setLiveStream(data.stream || { isSharing: false });
-        }
-        if (data.activeMeetLink) setActiveMeetLink(data.activeMeetLink);
+      const apiData = await res.json();
+      if (apiData.success) {
+        if (apiData.activeMeetLink) setActiveMeetLink(apiData.activeMeetLink);
       }
     } catch (e) {}
   };
@@ -161,6 +169,7 @@ export default function LiveClassroom() {
 
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
+          localVideoRef.current.play().catch(() => {});
         }
 
         // Detect native browser "Stop Sharing" floating bar click
@@ -168,8 +177,8 @@ export default function LiveClassroom() {
           stopScreenSharing();
         };
 
-        // Start broadcasting canvas frames
-        startBroadcastingFrames(stream);
+        // Start broadcasting captured frames from localVideoRef
+        startBroadcastingFrames();
 
       } catch (err) {
         console.error('Screen capture error:', err);
@@ -193,35 +202,57 @@ export default function LiveClassroom() {
       localVideoRef.current.srcObject = null;
     }
 
+    setLiveStream({ isSharing: false, broadcasterName: '', frame: null });
+
+    // Broadcast stop signal to Supabase
+    try {
+      await supabase.from('live_stream').upsert([{
+        id: 1,
+        is_sharing: false,
+        broadcaster_name: currentUser.name,
+        frame: null,
+        updated_at: new Date().toISOString()
+      }]);
+    } catch (e) {}
+
     const token = localStorage.getItem('arena_token');
     try {
       await fetch('/api/stream/broadcast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ isSharing: false, broadcasterName: currentUser.name })
+        body: JSON.stringify({ isSharing: false, broadcasterName: currentUser.name, frame: null })
       });
     } catch (e) {}
   };
 
-  const startBroadcastingFrames = (stream) => {
-    const hiddenVideo = document.createElement('video');
-    hiddenVideo.srcObject = stream;
-    hiddenVideo.play();
-
+  const startBroadcastingFrames = () => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
     if (broadcastIntervalRef.current) clearInterval(broadcastIntervalRef.current);
 
     broadcastIntervalRef.current = setInterval(async () => {
-      if (hiddenVideo.readyState === hiddenVideo.HAVE_ENOUGH_DATA) {
-        canvas.width = hiddenVideo.videoWidth / 2 || 640;
-        canvas.height = hiddenVideo.videoHeight / 2 || 360;
-        ctx.drawImage(hiddenVideo, 0, 0, canvas.width, canvas.height);
+      const videoEl = localVideoRef.current;
+      if (videoEl && videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
+        canvas.width = Math.min(videoEl.videoWidth, 800);
+        canvas.height = Math.min(videoEl.videoHeight, 450);
+        ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
 
-        const frameData = canvas.toDataURL('image/jpeg', 0.5);
+        const frameData = canvas.toDataURL('image/jpeg', 0.4);
         const token = localStorage.getItem('arena_token');
 
+        // 1. Direct Supabase Update for Instant Realtime Broadcast to All Students
+        try {
+          await supabase.from('live_stream').upsert([{
+            id: 1,
+            is_sharing: true,
+            broadcaster_name: currentUser.name,
+            frame: frameData,
+            updated_at: new Date().toISOString()
+          }]);
+        } catch (e) {}
+
+        // 2. API route fallback
         try {
           await fetch('/api/stream/broadcast', {
             method: 'POST',
@@ -230,7 +261,7 @@ export default function LiveClassroom() {
           });
         } catch (e) {}
       }
-    }, 600);
+    }, 500);
   };
 
   const handleSendChat = async (e) => {
@@ -308,7 +339,7 @@ export default function LiveClassroom() {
               {currentUser.watermarkText}
             </div>
 
-            {/* Local Screen Share Preview Video Element */}
+            {/* Local Screen Share Preview Video Element (Teacher View) */}
             <video
               ref={localVideoRef}
               autoPlay
@@ -323,7 +354,7 @@ export default function LiveClassroom() {
               }}
             />
 
-            {/* Remote Screen Share Broadcast Frame (For Students & Auditors) */}
+            {/* Remote Screen Share Broadcast Frame (For Students & Auditors View) */}
             {!isLocalSharing && (
               liveStream.isSharing && liveStream.frame ? (
                 <img src={liveStream.frame} alt="Teacher Screen Broadcast" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
