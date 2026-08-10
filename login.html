@@ -95,24 +95,38 @@
   }
 
   async function handleLogin(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
     const errorEl = document.getElementById('login-error-msg');
     const btn = document.getElementById('btn-login');
+
+    alert('🔍 Attempting login for: ' + email);
 
     errorEl.style.display = 'none';
     btn.disabled = true;
     btn.textContent = '🔄 Authenticating...';
 
     try {
+      alert('📡 Fetching: ' + API_URL + '/auth/login');
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
 
-      const data = await res.json();
+      alert('📥 Server HTTP Status: ' + res.status);
+
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (pErr) {
+        alert('❌ Server returned non-JSON response:\n' + text.substring(0, 300));
+        throw pErr;
+      }
+
+      alert('Result: ' + JSON.stringify(data));
 
       if (!data.success) {
         errorEl.textContent = data.error || 'Invalid credentials. Please try again.';
@@ -134,7 +148,8 @@
       window.location.href = redirectMap[data.user.role] || 'student.html';
 
     } catch (err) {
-      errorEl.textContent = '⚠️ Cannot connect to server. Make sure the API is running.';
+      alert('💥 JS Error Catch: ' + err.message);
+      errorEl.textContent = '⚠️ Cannot connect to server: ' + err.message;
       errorEl.style.display = 'block';
       btn.disabled = false;
       btn.textContent = '🔒 Secure Login to Portal';
