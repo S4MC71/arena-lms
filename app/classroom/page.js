@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
 export default function LiveClassroom() {
+  const [scheduleId, setScheduleId] = useState('SCH-101');
+
   const [activeTab, setActiveTab] = useState('chat');
   const [messages, setMessages] = useState([]);
   const [chatText, setChatText] = useState('');
@@ -13,7 +15,23 @@ export default function LiveClassroom() {
   const [currentUser, setCurrentUser] = useState({ name: 'Tanvir Hossain', role: 'student', watermarkText: 'STD-1001 • Tanvir Hossain • 10.10.14.5' });
   const [liveStream, setLiveStream] = useState({ isSharing: false, broadcasterName: '' });
 
+  const chatEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const sId = params.get('scheduleId');
+      if (sId) setScheduleId(sId);
+    }
+
     const userStr = localStorage.getItem('arena_user');
     if (userStr) {
       try {
@@ -24,9 +42,13 @@ export default function LiveClassroom() {
         });
       } catch (e) {}
     }
+  }, []);
 
-    // Load full history directly from Supabase DB on refresh
-    fetchChatMessages();
+  useEffect(() => {
+    if (!scheduleId) return;
+
+    // Load full history directly from Supabase DB on page load / refresh for this specific class
+    fetchChatMessages(scheduleId);
     pollLiveStream();
 
     // 1. Fallback polling
@@ -34,12 +56,12 @@ export default function LiveClassroom() {
       pollLiveStream();
     }, 5000);
 
-    // 2. Supabase Realtime Subscription (<100ms instant broadcast)
+    // 2. Supabase Realtime Subscription scoped specifically to this scheduleId
     const channel = supabase
-      .channel('realtime_chat_messages_channel')
+      .channel(`realtime_chat_${scheduleId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `schedule_id=eq.${scheduleId}` },
         (payload) => {
           if (payload.new) {
             setMessages(prev => {
@@ -57,19 +79,20 @@ export default function LiveClassroom() {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [scheduleId]);
 
-  const fetchChatMessages = async () => {
+  const fetchChatMessages = async (classId) => {
     try {
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
+        .eq('schedule_id', classId)
         .order('created_at', { ascending: true });
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         setMessages(data);
       } else {
-        const res = await fetch('/api/chat/messages');
+        const res = await fetch(`/api/chat/messages?scheduleId=${classId}`);
         const apiData = await res.json();
         if (apiData.success && apiData.messages) {
           setMessages(apiData.messages);
@@ -95,6 +118,7 @@ export default function LiveClassroom() {
 
     const newMsg = {
       id: `MSG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      schedule_id: scheduleId,
       author: `${currentUser.name} (${(currentUser.role || 'student').toUpperCase()})`,
       role: currentUser.role || 'student',
       text: textToSend,
@@ -109,7 +133,7 @@ export default function LiveClassroom() {
       return Array.from(map.values());
     });
 
-    // 2. Direct Supabase insert for guaranteed database persistence
+    // 2. Direct Supabase insert scoped to scheduleId
     try {
       await supabase.from('chat_messages').insert([newMsg]);
     } catch (err) {}
@@ -120,7 +144,7 @@ export default function LiveClassroom() {
       await fetch('/api/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ text: textToSend, authorName: currentUser.name })
+        body: JSON.stringify({ text: textToSend, authorName: currentUser.name, scheduleId })
       });
     } catch (err) {}
   };
@@ -217,7 +241,7 @@ export default function LiveClassroom() {
 
           {/* Chat Tab Content */}
           <div className={`tab-content ${activeTab === 'chat' ? 'active' : ''}`}>
-            <div className="chat-messages">
+            <div className="chat-messages" style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 280px)', paddingRight: '6px' }}>
               {messages.map((m) => (
                 <div className="chat-msg" key={m.id}>
                   <div className="author">
@@ -227,6 +251,7 @@ export default function LiveClassroom() {
                   <div style={{ color: 'var(--text-main)', marginTop: '2px' }}>{m.text}</div>
                 </div>
               ))}
+              <div ref={chatEndRef} />
             </div>
 
             <form onSubmit={handleSendChat} className="chat-input-box">

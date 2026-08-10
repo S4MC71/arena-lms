@@ -322,8 +322,8 @@ export default function StudentPortal() {
                       <td>{s.time}</td>
                       <td><strong>{s.topic}</strong></td>
                       <td>
-                        <Link href="/classroom" className="btn btn-outline btn-sm">
-                          🎥 View Canvas
+                        <Link href={`/classroom?scheduleId=${s.id}`} className="btn btn-outline btn-sm">
+                          🎥 View Canvas & Chat
                         </Link>
                       </td>
                     </tr>

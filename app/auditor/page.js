@@ -257,7 +257,7 @@ export default function AuditorPortal() {
                           )}
                         </td>
                         <td style={{ display: 'flex', gap: '8px' }}>
-                          <Link href="/classroom" className="btn btn-outline btn-sm">
+                          <Link href={`/classroom?scheduleId=${s.id}`} className="btn btn-outline btn-sm">
                             👁️ Audit Session
                           </Link>
                           <button type="button" className="btn btn-danger btn-sm" onClick={() => handleDeleteSchedule(s.id)}>

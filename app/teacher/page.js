@@ -266,7 +266,7 @@ export default function TeacherPortal() {
                               <button className="btn btn-danger btn-sm" onClick={() => handleStopClass(s.id)}>
                                 ⏹️ End Session
                               </button>
-                              <Link href="/classroom" className="btn btn-cyan btn-sm">
+                              <Link href={`/classroom?scheduleId=${s.id}`} className="btn btn-cyan btn-sm">
                                 🎥 Open Live Canvas & Chat
                               </Link>
                             </>
@@ -275,7 +275,7 @@ export default function TeacherPortal() {
                               <button className="btn btn-cyan btn-sm" onClick={() => handleStartClass(s.id)}>
                                 ▶️ Start Live Class
                               </button>
-                              <Link href="/classroom" className="btn btn-outline btn-sm">
+                              <Link href={`/classroom?scheduleId=${s.id}`} className="btn btn-outline btn-sm">
                                 💬 Open Chat Canvas
                               </Link>
                             </>
