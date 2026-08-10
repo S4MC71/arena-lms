@@ -12,9 +12,13 @@ export async function GET(request) {
 
   try {
     let query = supabase.from('schedules').select('*').order('created_at', { ascending: false });
+    
     if (user.role === 'student') {
       query = query.eq('batch_id', user.batchId);
+    } else if (user.role === 'teacher') {
+      query = query.eq('teacher_name', user.name);
     }
+
     const { data, error } = await query;
     if (error || !data) throw error;
 
@@ -34,7 +38,11 @@ export async function GET(request) {
     return NextResponse.json({ success: true, schedules: formatted });
   } catch (err) {
     let schedules = db.schedules;
-    if (user.role === 'student') schedules = db.schedules.filter(s => s.batchId === user.batchId);
+    if (user.role === 'student') {
+      schedules = db.schedules.filter(s => s.batchId === user.batchId);
+    } else if (user.role === 'teacher') {
+      schedules = db.schedules.filter(s => s.teacherName === user.name);
+    }
     return NextResponse.json({ success: true, schedules });
   }
 }
