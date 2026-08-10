@@ -1,10 +1,22 @@
 const app = require('../backend/api-app');
 
 module.exports = (req, res) => {
-  // Vercel sometimes strips the /api prefix or passes the destination path.
-  // This ensures Express always sees the full path (e.g. /api/auth/login) so routes match.
-  if (req.url && !req.url.startsWith('/api')) {
+  // DEBUG INTERCEPTOR
+  if (req.url && req.url.includes('/debug')) {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
+      success: true,
+      receivedUrl: req.url,
+      originalUrl: req.originalUrl || null,
+      headers: req.headers
+    }));
+    return;
+  }
+
+  // Restore the URL if Vercel mangles it
+  if (req.url && !req.url.startsWith('/api') && !req.url.includes('.js')) {
     req.url = '/api' + (req.url.startsWith('/') ? '' : '/') + req.url;
   }
+  
   return app(req, res);
 };
