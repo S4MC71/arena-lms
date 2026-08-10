@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google-apps/meet": "^0.8.0",
+    "@supabase/supabase-js": "^2.112.2",
     "google-auth-library": "^11.0.0",
     "googleapis": "^174.0.1",
     "next": "^14.2.15",
