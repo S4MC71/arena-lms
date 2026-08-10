@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 const { createOAuth2Client } = require('@/lib/google');
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
-  const userId = searchParams.get('state');
+  const userId = searchParams.get('state') || 'TCH-001';
   const error = searchParams.get('error');
 
   if (error) {
@@ -20,15 +21,22 @@ export async function GET(request) {
     const oauth2Client = createOAuth2Client();
     const { tokens } = await oauth2Client.getToken(code);
 
+    const tokenObj = {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expiry_date: tokens.expiry_date,
+      token_type: tokens.token_type,
+      scope: tokens.scope
+    };
+
     if (userId && db.googleTokens) {
-      db.googleTokens[userId] = {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expiry_date: tokens.expiry_date,
-        token_type: tokens.token_type,
-        scope: tokens.scope
-      };
+      db.googleTokens[userId] = tokenObj;
     }
+
+    // Save tokens in Supabase DB for production persistence
+    try {
+      await supabase.from('google_tokens').upsert([{ user_id: userId, tokens: tokenObj }]);
+    } catch (e) {}
 
     return NextResponse.redirect(new URL('/teacher?google_connected=1', request.url));
   } catch (err) {

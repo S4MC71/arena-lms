@@ -11,9 +11,12 @@ export default function TeacherPortal() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [schedules, setSchedules] = useState([]);
   const [homeworks, setHomeworks] = useState([]);
-  const [liveMeetLink, setLiveMeetLink] = useState('');
-  const [googleConnected, setGoogleConnected] = useState(false);
   const [toast, setToast] = useState('');
+  const [liveMeetLink, setLiveMeetLink] = useState('');
+
+  // Google Classroom sync state
+  const [syncTitle, setSyncTitle] = useState('');
+  const [syncText, setSyncText] = useState('');
 
   useEffect(() => {
     async function checkAuth() {
@@ -46,6 +49,16 @@ export default function TeacherPortal() {
     checkAuth();
   }, [router]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('google_connected') === '1') {
+        setToast('✅ Google Workspace Account Connected Successfully!');
+        setTimeout(() => setToast(''), 4000);
+      }
+    }
+  }, []);
+
   const loadAllData = async (token) => {
     try {
       const authHeader = { 'Authorization': `Bearer ${token}` };
@@ -71,7 +84,7 @@ export default function TeacherPortal() {
       });
       const data = await res.json();
       if (data.success) {
-        setToast('✅ Class is now LIVE! Broadcast launched.');
+        setToast('✅ Class is now LIVE! Google Meet link broadcasted.');
         await loadAllData(token);
         setTimeout(() => setToast(''), 4000);
       }
@@ -116,6 +129,33 @@ export default function TeacherPortal() {
     }
   };
 
+  const handleSyncClassroom = async () => {
+    if (!syncTitle.trim()) {
+      alert('Please enter announcement / coursework title');
+      return;
+    }
+
+    const token = localStorage.getItem('arena_token');
+    try {
+      const res = await fetch('/api/google/classroom-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ title: syncTitle, text: syncText, type: 'announcement' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast('✅ ' + (data.message || 'Synced to Google Classroom!'));
+        setSyncTitle('');
+        setSyncText('');
+        setTimeout(() => setToast(''), 5000);
+      } else {
+        alert(data.message || data.error);
+      }
+    } catch (e) {
+      alert('Error syncing to Google Classroom');
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('arena_token');
     localStorage.removeItem('arena_user');
@@ -151,7 +191,7 @@ export default function TeacherPortal() {
           </a>
 
           <a className={`nav-link ${activeTab === 'google' ? 'active' : ''}`} onClick={() => setActiveTab('google')}>
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 4-4H5a4 4 0 0 4-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
             Google Workspace OAuth
           </a>
 
@@ -176,7 +216,7 @@ export default function TeacherPortal() {
         {/* Top Header */}
         <header className="top-header">
           <div className="header-title">
-            <h2>Instructor Portal — Rahat Chowdhury</h2>
+            <h2>Instructor Portal — {currentUser?.name}</h2>
           </div>
 
           <div className="header-actions">
@@ -219,29 +259,29 @@ export default function TeacherPortal() {
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Optional: Google Meet Link (Leave blank for Auto-Create via Meet API)"
+                    placeholder="Custom Google Meet / Zoom URL (Optional - Auto Generated if blank)"
                     value={liveMeetLink}
                     onChange={(e) => setLiveMeetLink(e.target.value)}
                     style={{ flex: 1, minWidth: '300px' }}
                   />
-                  <button className="btn btn-cyan" onClick={() => handleStartClass('SCH-101')}>
-                    🚀 Start Batch 1 Live Session
+                  <button className="btn btn-purple" onClick={handleConnectGoogle}>
+                    🌐 Connect Google Workspace
                   </button>
                 </div>
               </div>
 
-              {/* Schedules Table */}
+              {/* Assigned Class Schedule Table */}
               <div className="glass-card">
                 <div className="section-header">
-                  <div className="section-title">📅 Assigned Batch Classes (Thu - Sun 9:30-11:30 PM)</div>
+                  <div className="section-title">📅 Assigned Batch Classes & Live Control</div>
                 </div>
                 <table className="custom-table">
                   <thead>
                     <tr>
                       <th>Batch</th>
-                      <th>Day & Date</th>
-                      <th>Time</th>
-                      <th>Topic</th>
+                      <th>Day / Slot</th>
+                      <th>Class Topic</th>
+                      <th>Google Meet Link</th>
                       <th>Status</th>
                       <th>Action</th>
                     </tr>
@@ -249,10 +289,18 @@ export default function TeacherPortal() {
                   <tbody>
                     {schedules.map((s) => (
                       <tr key={s.id}>
-                        <td><span className="badge badge-cyan">{s.batchName}</span></td>
-                        <td>{s.day}, {s.date}</td>
-                        <td>{s.time}</td>
-                        <td style={{ color: '#fff', fontWeight: 600 }}>{s.topic}</td>
+                        <td><span className="badge badge-purple">{s.batchName}</span></td>
+                        <td>{s.day} ({s.time})</td>
+                        <td><strong>{s.topic}</strong></td>
+                        <td>
+                          {s.meetLink ? (
+                            <a href={s.meetLink} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--cyan)', fontWeight: 700 }}>
+                              🟢 Open Google Meet
+                            </a>
+                          ) : (
+                            <span style={{ color: 'var(--text-dim)', fontSize: '0.82rem' }}>Auto Generated on Start</span>
+                          )}
+                        </td>
                         <td>
                           {s.status === 'LIVE' ? (
                             <span className="badge badge-rose">🔴 LIVE</span>
@@ -297,12 +345,49 @@ export default function TeacherPortal() {
                 <div className="section-title">🔑 Google Workspace OAuth & Classroom Integration</div>
               </div>
               <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
-                Connect your official Google Instructor account to automatically generate Google Meet session links, sync Google Classroom coursework, and export student grades.
+                Connect your official Google Instructor account to automatically generate Google Meet session links and sync Google Classroom coursework & announcements.
               </p>
 
-              <button className="btn btn-cyan btn-lg" onClick={handleConnectGoogle}>
-                🌐 Connect Google Workspace Account
-              </button>
+              <div style={{ marginBottom: '30px', padding: '16px', background: 'rgba(6,182,212,0.08)', borderRadius: '10px', border: '1px solid rgba(6,182,212,0.3)' }}>
+                <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--cyan)', marginBottom: '8px' }}>🌐 Connect Google Workspace Account</h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
+                  Clicking below authorizes Arena LMS to generate Google Meet space links and post coursework directly to your Google Classroom account.
+                </p>
+                <button className="btn btn-cyan btn-lg" onClick={handleConnectGoogle}>
+                  🌐 Authorize Google Workspace OAuth
+                </button>
+              </div>
+
+              {/* Google Classroom Announcement Sync Widget */}
+              <div style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--bg-card-border)' }}>
+                <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--purple)', marginBottom: '12px' }}>📢 Post Announcement to Google Classroom</h4>
+                <div className="form-group">
+                  <label className="form-label">Announcement Title / Module Topic:</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. Class 05 Notes & LFI Lab Instructions"
+                    value={syncTitle}
+                    onChange={(e) => setSyncTitle(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Notice Details / Instructions:</label>
+                  <textarea
+                    className="form-control"
+                    rows="3"
+                    placeholder="Please review today's payload scripts and submit homework..."
+                    value={syncText}
+                    onChange={(e) => setSyncText(e.target.value)}
+                  />
+                </div>
+
+                <button className="btn btn-purple" onClick={handleSyncClassroom}>
+                  🚀 Publish to Google Classroom
+                </button>
+              </div>
+
             </div>
           )}
 
