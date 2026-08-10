@@ -58,10 +58,10 @@ export default function LiveClassroom() {
     fetchChatMessages(scheduleId);
     pollLiveStream();
 
-    // 1. Polling fallback for live stream & meet link every 2.5 seconds
+    // 1. Fast polling fallback every 1000ms for live screen frames
     const interval = setInterval(() => {
       pollLiveStream();
-    }, 2500);
+    }, 1000);
 
     // 2. Supabase Realtime Subscription for chat comments
     const chatChannel = supabase
@@ -84,7 +84,7 @@ export default function LiveClassroom() {
 
     // 3. Supabase Realtime Subscription for Live Screen Share Frames (<100ms)
     const streamChannel = supabase
-      .channel('realtime_live_stream_channel_v2')
+      .channel('realtime_live_stream_channel_v3')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'live_stream' },
@@ -92,8 +92,8 @@ export default function LiveClassroom() {
           if (payload.new && !isLocalSharing) {
             setLiveStream({
               isSharing: !!payload.new.is_sharing,
-              broadcasterName: payload.new.broadcaster_name,
-              frame: payload.new.frame
+              broadcasterName: payload.new.broadcaster_name || 'Instructor',
+              frame: payload.new.frame || null
             });
           }
         }
@@ -130,12 +130,12 @@ export default function LiveClassroom() {
   const pollLiveStream = async () => {
     try {
       // Direct Supabase query for screen frame
-      const { data } = await supabase.from('live_stream').select('*').eq('id', 1).single();
+      const { data } = await supabase.from('live_stream').select('is_sharing, broadcaster_name, frame').eq('id', 1).single();
       if (data && !isLocalSharing) {
         setLiveStream({
           isSharing: !!data.is_sharing,
-          broadcasterName: data.broadcaster_name,
-          frame: data.frame
+          broadcasterName: data.broadcaster_name || 'Instructor',
+          frame: data.frame || null
         });
       }
 
@@ -238,7 +238,7 @@ export default function LiveClassroom() {
         canvas.height = Math.min(videoEl.videoHeight, 450);
         ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
 
-        const frameData = canvas.toDataURL('image/jpeg', 0.4);
+        const frameData = canvas.toDataURL('image/jpeg', 0.45);
         const token = localStorage.getItem('arena_token');
 
         // 1. Direct Supabase Update for Instant Realtime Broadcast to All Students
