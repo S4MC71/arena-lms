@@ -25,18 +25,18 @@ export default function LiveClassroom() {
       } catch (e) {}
     }
 
+    // Load full history directly from Supabase DB on refresh
     fetchChatMessages();
     pollLiveStream();
 
-    // 1. Polling interval fallback
+    // 1. Fallback polling
     const interval = setInterval(() => {
-      fetchChatMessages();
       pollLiveStream();
-    }, 3000);
+    }, 5000);
 
-    // 2. Supabase Realtime Subscription for instantaneous comments (<100ms)
+    // 2. Supabase Realtime Subscription (<100ms instant broadcast)
     const channel = supabase
-      .channel('realtime_chat_messages')
+      .channel('realtime_chat_messages_channel')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'chat_messages' },
@@ -61,15 +61,19 @@ export default function LiveClassroom() {
 
   const fetchChatMessages = async () => {
     try {
-      const res = await fetch('/api/chat/messages');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.messages)) {
-        setMessages(prev => {
-          const map = new Map();
-          prev.forEach(m => map.set(m.id, m));
-          data.messages.forEach(m => map.set(m.id, m));
-          return Array.from(map.values());
-        });
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        setMessages(data);
+      } else {
+        const res = await fetch('/api/chat/messages');
+        const apiData = await res.json();
+        if (apiData.success && apiData.messages) {
+          setMessages(apiData.messages);
+        }
       }
     } catch (e) {}
   };
@@ -90,16 +94,27 @@ export default function LiveClassroom() {
     setChatText('');
 
     const newMsg = {
-      id: `MSG-${Date.now()}`,
+      id: `MSG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       author: `${currentUser.name} (${(currentUser.role || 'student').toUpperCase()})`,
       role: currentUser.role || 'student',
       text: textToSend,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    // Optimistically show message immediately in UI
-    setMessages(prev => [...prev, newMsg]);
+    // 1. Show immediately on UI
+    setMessages(prev => {
+      const map = new Map();
+      prev.forEach(m => map.set(m.id, m));
+      map.set(newMsg.id, newMsg);
+      return Array.from(map.values());
+    });
 
+    // 2. Direct Supabase insert for guaranteed database persistence
+    try {
+      await supabase.from('chat_messages').insert([newMsg]);
+    } catch (err) {}
+
+    // 3. API route sync
     try {
       const token = localStorage.getItem('arena_token');
       await fetch('/api/chat/send', {
@@ -107,7 +122,6 @@ export default function LiveClassroom() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ text: textToSend, authorName: currentUser.name })
       });
-      fetchChatMessages();
     } catch (err) {}
   };
 

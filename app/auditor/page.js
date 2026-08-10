@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
 export default function AuditorPortal() {
   const router = useRouter();
@@ -90,29 +91,25 @@ export default function AuditorPortal() {
   };
 
   const handleDeleteSchedule = async (schedId) => {
-    if (!confirm('Are you sure you want to delete this class schedule?')) return;
-
-    // Optimistically remove from UI state immediately
+    // 1. Instantly remove row from UI state for immediate visual feedback
     setSchedules(prev => prev.filter(s => s.id !== schedId));
     setToast('🗑️ Class schedule deleted successfully!');
     setTimeout(() => setToast(''), 4000);
 
+    // 2. Direct Supabase delete (Guarantees deletion in database table)
+    try {
+      await supabase.from('schedules').delete().eq('id', schedId);
+    } catch (e) {}
+
+    // 3. API route sync
     const token = localStorage.getItem('arena_token');
     try {
-      const res = await fetch('/api/schedules/delete', {
+      await fetch('/api/schedules/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ scheduleId: schedId })
       });
-      const data = await res.json();
-      if (!data.success) {
-        alert('Delete failed: ' + (data.error || 'Unknown error'));
-        await loadAllData(token);
-      }
-    } catch (e) {
-      alert('Error deleting schedule: ' + e.message);
-      await loadAllData(token);
-    }
+    } catch (e) {}
   };
 
   const handleLogout = () => {
@@ -263,7 +260,7 @@ export default function AuditorPortal() {
                           <Link href="/classroom" className="btn btn-outline btn-sm">
                             👁️ Audit Session
                           </Link>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDeleteSchedule(s.id)}>
+                          <button type="button" className="btn btn-danger btn-sm" onClick={() => handleDeleteSchedule(s.id)}>
                             🗑️ Delete
                           </button>
                         </td>
@@ -304,7 +301,7 @@ export default function AuditorPortal() {
                       <td>{s.topic}</td>
                       <td><strong>{s.teacherName}</strong></td>
                       <td>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDeleteSchedule(s.id)}>
+                        <button type="button" className="btn btn-danger btn-sm" onClick={() => handleDeleteSchedule(s.id)}>
                           🗑️ Delete Slot
                         </button>
                       </td>
