@@ -13,8 +13,15 @@ export default function LiveClassroom() {
   const [micOn, setMicOn] = useState(false);
   const [camOn, setCamOn] = useState(true);
   const [currentUser, setCurrentUser] = useState({ name: 'Tanvir Hossain', role: 'student', watermarkText: 'STD-1001 • Tanvir Hossain • 10.10.14.5' });
+  
+  // Live Stream & Screen Sharing state
   const [liveStream, setLiveStream] = useState({ isSharing: false, broadcasterName: '' });
+  const [isLocalSharing, setIsLocalSharing] = useState(false);
+  const [activeMeetLink, setActiveMeetLink] = useState('');
 
+  const localVideoRef = useRef(null);
+  const screenStreamRef = useRef(null);
+  const broadcastIntervalRef = useRef(null);
   const chatEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -47,17 +54,17 @@ export default function LiveClassroom() {
   useEffect(() => {
     if (!scheduleId) return;
 
-    // Load full history directly from Supabase DB on page load / refresh for this specific class
+    // Load chat history & stream status
     fetchChatMessages(scheduleId);
     pollLiveStream();
 
-    // 1. Fallback polling
+    // 1. Polling fallback for live stream & meet link
     const interval = setInterval(() => {
       pollLiveStream();
-    }, 5000);
+    }, 4000);
 
-    // 2. Supabase Realtime Subscription scoped specifically to this scheduleId
-    const channel = supabase
+    // 2. Supabase Realtime Subscription for chat comments
+    const chatChannel = supabase
       .channel(`realtime_chat_${scheduleId}`)
       .on(
         'postgres_changes',
@@ -75,9 +82,28 @@ export default function LiveClassroom() {
       )
       .subscribe();
 
+    // 3. Supabase Realtime Subscription for Live Screen Share Frames
+    const streamChannel = supabase
+      .channel('realtime_live_stream_channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'live_stream' },
+        (payload) => {
+          if (payload.new) {
+            setLiveStream({
+              isSharing: payload.new.is_sharing,
+              broadcasterName: payload.new.broadcaster_name,
+              frame: payload.new.frame
+            });
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       clearInterval(interval);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(chatChannel);
+      supabase.removeChannel(streamChannel);
     };
   }, [scheduleId]);
 
@@ -105,8 +131,106 @@ export default function LiveClassroom() {
     try {
       const res = await fetch('/api/stream/live');
       const data = await res.json();
-      if (data.success) setLiveStream(data.stream || { isSharing: false });
+      if (data.success) {
+        if (!isLocalSharing) {
+          setLiveStream(data.stream || { isSharing: false });
+        }
+        if (data.activeMeetLink) setActiveMeetLink(data.activeMeetLink);
+      }
     } catch (e) {}
+  };
+
+  // Toggle Screen Share using HTML5 navigator.mediaDevices.getDisplayMedia
+  const handleToggleScreenShare = async () => {
+    if (isLocalSharing) {
+      stopScreenSharing();
+    } else {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+          alert('Screen sharing is not supported on this browser/device.');
+          return;
+        }
+
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: 'always' },
+          audio: false
+        });
+
+        screenStreamRef.current = stream;
+        setIsLocalSharing(true);
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+
+        // Detect native browser "Stop Sharing" floating bar click
+        stream.getVideoTracks()[0].onended = () => {
+          stopScreenSharing();
+        };
+
+        // Start broadcasting canvas frames
+        startBroadcastingFrames(stream);
+
+      } catch (err) {
+        console.error('Screen capture error:', err);
+      }
+    }
+  };
+
+  const stopScreenSharing = async () => {
+    setIsLocalSharing(false);
+    if (broadcastIntervalRef.current) {
+      clearInterval(broadcastIntervalRef.current);
+      broadcastIntervalRef.current = null;
+    }
+
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach(t => t.stop());
+      screenStreamRef.current = null;
+    }
+
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+
+    const token = localStorage.getItem('arena_token');
+    try {
+      await fetch('/api/stream/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ isSharing: false, broadcasterName: currentUser.name })
+      });
+    } catch (e) {}
+  };
+
+  const startBroadcastingFrames = (stream) => {
+    const hiddenVideo = document.createElement('video');
+    hiddenVideo.srcObject = stream;
+    hiddenVideo.play();
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    if (broadcastIntervalRef.current) clearInterval(broadcastIntervalRef.current);
+
+    broadcastIntervalRef.current = setInterval(async () => {
+      if (hiddenVideo.readyState === hiddenVideo.HAVE_ENOUGH_DATA) {
+        canvas.width = hiddenVideo.videoWidth / 2 || 640;
+        canvas.height = hiddenVideo.videoHeight / 2 || 360;
+        ctx.drawImage(hiddenVideo, 0, 0, canvas.width, canvas.height);
+
+        const frameData = canvas.toDataURL('image/jpeg', 0.5);
+        const token = localStorage.getItem('arena_token');
+
+        try {
+          await fetch('/api/stream/broadcast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ isSharing: true, frame: frameData, broadcasterName: currentUser.name })
+          });
+        } catch (e) {}
+      }
+    }, 600);
   };
 
   const handleSendChat = async (e) => {
@@ -125,7 +249,6 @@ export default function LiveClassroom() {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    // 1. Show immediately on UI
     setMessages(prev => {
       const map = new Map();
       prev.forEach(m => map.set(m.id, m));
@@ -133,12 +256,10 @@ export default function LiveClassroom() {
       return Array.from(map.values());
     });
 
-    // 2. Direct Supabase insert scoped to scheduleId
     try {
       await supabase.from('chat_messages').insert([newMsg]);
     } catch (err) {}
 
-    // 3. API route sync
     try {
       const token = localStorage.getItem('arena_token');
       await fetch('/api/chat/send', {
@@ -153,16 +274,21 @@ export default function LiveClassroom() {
     <div style={{ background: '#030712', minHeight: '100vh', padding: '16px', display: 'flex', flexDirection: 'column' }}>
       
       {/* Top Header Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', background: '#090D16', padding: '12px 20px', borderRadius: '12px', border: '1px solid var(--bg-card-border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', background: '#090D16', padding: '12px 20px', borderRadius: '12px', border: '1px solid var(--bg-card-border)', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div className="brand-logo" style={{ width: '34px', height: '34px', fontSize: '1.1rem' }}>🛡️</div>
           <div>
             <h2 style={{ fontSize: '1.05rem', fontWeight: 800 }}>Batch 1 — Web Security & Bug Bounty Live Session</h2>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Instructor: Rahat Chowdhury | Topic: LFI/RFI Exploitation</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Instructor: Rahat Chowdhury | Session ID: {scheduleId}</span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {activeMeetLink && (
+            <a href={activeMeetLink} target="_blank" rel="noopener noreferrer" className="btn btn-cyan btn-sm">
+              🟢 Join Google Meet Room
+            </a>
+          )}
           <span className="badge badge-rose">🔴 LIVE ZOOM SDK CANVAS</span>
           <Link href="/student" className="btn btn-outline btn-sm">
             🚪 Exit Session
@@ -182,23 +308,40 @@ export default function LiveClassroom() {
               {currentUser.watermarkText}
             </div>
 
-            {/* Video Feed or Speaker Avatar Placeholder */}
-            {liveStream.isSharing && liveStream.frame ? (
-              <img src={liveStream.frame} alt="Teacher Screen Broadcast" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            ) : (
-              <div className="video-placeholder">
-                <div className="avatar-large">RC</div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Rahat Chowdhury (Instructor)</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '4px' }}>
-                  {liveStream.isSharing ? 'Sharing Screen & Demonstration...' : 'Microphone Active • Camera Standby'}
-                </p>
-              </div>
+            {/* Local Screen Share Preview Video Element */}
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              style={{
+                display: isLocalSharing ? 'block' : 'none',
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                background: '#000'
+              }}
+            />
+
+            {/* Remote Screen Share Broadcast Frame (For Students & Auditors) */}
+            {!isLocalSharing && (
+              liveStream.isSharing && liveStream.frame ? (
+                <img src={liveStream.frame} alt="Teacher Screen Broadcast" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              ) : (
+                <div className="video-placeholder">
+                  <div className="avatar-large">RC</div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Rahat Chowdhury (Instructor)</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '4px' }}>
+                    {liveStream.isSharing ? `Broadcasting Desktop Screen (${liveStream.broadcasterName})` : 'Microphone Active • Click Share Screen Below to Stream'}
+                  </p>
+                </div>
+              )
             )}
 
             {/* Active Speaker Info Overlay */}
             <div className="video-overlay-info">
               <span className="status-indicator live"></span>
-              <span><strong>Rahat Chowdhury</strong> (Host)</span>
+              <span><strong>{isLocalSharing ? currentUser.name : (liveStream.broadcasterName || 'Rahat Chowdhury')}</strong> (Host)</span>
             </div>
 
           </div>
@@ -211,6 +354,15 @@ export default function LiveClassroom() {
               </button>
               <button className={`ctrl-btn ${camOn ? 'active' : 'off'}`} onClick={() => setCamOn(!camOn)} title="Toggle Camera">
                 {camOn ? '📹' : '🚫'}
+              </button>
+              
+              {/* Screen Share Control Button for Instructors / Presenters */}
+              <button
+                className={`btn ${isLocalSharing ? 'btn-danger' : 'btn-purple'} btn-sm`}
+                onClick={handleToggleScreenShare}
+                style={{ marginLeft: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                {isLocalSharing ? '⏹️ Stop Screen Share' : '🖥️ Share Screen Live'}
               </button>
             </div>
 
