@@ -1,2 +1,2 @@
-const app = require('../server');
+const app = require('../backend/api-app');
 module.exports = app;
