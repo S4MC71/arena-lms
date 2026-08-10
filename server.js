@@ -21,7 +21,7 @@ app.use(express.static(path.join(__dirname)));
 
 // ─── Import shared DB ─────────────────────────────────────────────────────────
 // Reuse the same DB module as the Vercel functions for consistency
-const { db, createToken, verifyToken, setCors } = require('./api/_db');
+const { db, createToken, verifyToken, setCors } = require('./backend/_db');
 
 // ─── Auth Middleware ──────────────────────────────────────────────────────────
 function requireAuth(req, res, next) {
@@ -66,11 +66,11 @@ app.get('/api/schedules', requireAuth, (req, res) => {
 });
 
 // ─── Google Integrations ───────────────────────────────────────────────────────
-const googleOAuthUrl = require('./api/google/oauth-url');
-const googleOAuthCallback = require('./api/google/oauth-callback');
-const googleClassroomCoursework = require('./api/google/classroom/coursework');
-const googleClassroomGrades = require('./api/google/classroom/grades');
-const schedulesStart = require('./api/schedules/start');
+const googleOAuthUrl = require('./backend/google/oauth-url');
+const googleOAuthCallback = require('./backend/google/oauth-callback');
+const googleClassroomCoursework = require('./backend/google/classroom/coursework');
+const googleClassroomGrades = require('./backend/google/classroom/grades');
+const schedulesStart = require('./backend/schedules/start');
 
 // Map serverless functions to Express routes
 app.get('/api/google/oauth-url', (req, res) => googleOAuthUrl(req, res));
