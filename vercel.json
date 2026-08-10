@@ -2,23 +2,10 @@
   "version": 2,
   "name": "arena-web-security-lms",
   "builds": [
-    { "src": "api/**/*.js", "use": "@vercel/node" }
+    { "src": "api/index.js", "use": "@vercel/node" }
   ],
   "routes": [
-    { "src": "/api/auth/login",         "dest": "/api/auth/login.js" },
-    { "src": "/api/auth/me",            "dest": "/api/auth/me.js" },
-    { "src": "/api/schedules",          "dest": "/api/schedules/index.js" },
-    { "src": "/api/schedules/start",    "dest": "/api/schedules/start.js" },
-    { "src": "/api/schedules/stop",     "dest": "/api/schedules/stop.js" },
-    { "src": "/api/schedules/assign",   "dest": "/api/schedules/assign.js" },
-    { "src": "/api/homeworks",          "dest": "/api/homeworks/index.js" },
-    { "src": "/api/homeworks/submit",   "dest": "/api/homeworks/submit.js" },
-    { "src": "/api/chat/messages",      "dest": "/api/chat/messages.js" },
-    { "src": "/api/chat/send",          "dest": "/api/chat/send.js" },
-    { "src": "/api/stream/live",        "dest": "/api/stream/live.js" },
-    { "src": "/api/stream/broadcast",   "dest": "/api/stream/broadcast.js" },
-    { "src": "/api/meet/create",        "dest": "/api/meet/create.js" },
-    { "src": "/api/attendance",         "dest": "/api/attendance/index.js" },
-    { "src": "/(.*)",                   "dest": "/$1" }
+    { "src": "/api/(.*)", "dest": "/api/index.js" },
+    { "src": "/(.*)", "dest": "/$1" }
   ]
 }
