@@ -2,6 +2,7 @@
   "version": 2,
   "name": "arena-web-security-lms",
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.js" },
     { "source": "/", "destination": "/login.html" }
   ]
 }
