@@ -55,18 +55,28 @@ export default function LiveClassroom() {
     e.preventDefault();
     if (!chatText.trim()) return;
 
+    const textToSend = chatText;
+    setChatText('');
+
+    const newMsg = {
+      id: `MSG-${Date.now()}`,
+      author: `${currentUser.name} (${(currentUser.role || 'student').toUpperCase()})`,
+      role: currentUser.role || 'student',
+      text: textToSend,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    // Optimistically show message immediately in UI
+    setMessages(prev => [...prev, newMsg]);
+
     try {
       const token = localStorage.getItem('arena_token');
-      const res = await fetch('/api/chat/send', {
+      await fetch('/api/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ text: chatText, authorName: currentUser.name })
+        body: JSON.stringify({ text: textToSend, authorName: currentUser.name })
       });
-      const data = await res.json();
-      if (data.success) {
-        setChatText('');
-        await fetchChatMessages();
-      }
+      fetchChatMessages();
     } catch (err) {}
   };
 
