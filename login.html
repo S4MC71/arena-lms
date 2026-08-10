@@ -108,14 +108,11 @@
     btn.textContent = '🔄 Authenticating...';
 
     try {
-      alert('📡 Fetching: ' + API_URL + '/auth/login');
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-
-      alert('📥 Server HTTP Status: ' + res.status);
 
       const text = await res.text();
       let data;
@@ -125,8 +122,6 @@
         alert('❌ Server returned non-JSON response:\n' + text.substring(0, 300));
         throw pErr;
       }
-
-      alert('Result: ' + JSON.stringify(data));
 
       if (!data.success) {
         errorEl.textContent = data.error || 'Invalid credentials. Please try again.';
@@ -145,7 +140,9 @@
         auditor: 'auditor.html'
       };
 
-      window.location.href = redirectMap[data.user.role] || 'student.html';
+      const targetPage = redirectMap[data.user.role] || 'student.html';
+      alert('🚀 Login Successful! Redirecting to: /' + targetPage);
+      window.location.replace('/' + targetPage);
 
     } catch (err) {
       alert('💥 JS Error Catch: ' + err.message);
